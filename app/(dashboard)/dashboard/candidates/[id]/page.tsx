@@ -51,14 +51,8 @@ interface Comment {
   } | null;
 }
 
-// Extended Candidate type with translation fields
-interface CandidateWithTranslation extends Candidate {
-  original_language?: string;
-  about_text_translated?: string;
-  why_vamos_translated?: string;
-  key_skills_translated?: string;
-  translated_to?: string;
-}
+// Extended Candidate type with translation fields (already in base Candidate type)
+type CandidateWithTranslation = Candidate;
 
 export default function CandidateDetailsPage() {
   const params = useParams();
