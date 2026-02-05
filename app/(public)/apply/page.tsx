@@ -46,7 +46,7 @@ const applicationSchema = z.object({
   resume: z.any().optional(),
 }).refine((data) => {
   // If telegram is selected, username is required
-  if (data.preferred_contact_methods.includes('telegram')) {
+  if (data.preferred_contact_methods?.includes('telegram')) {
     return data.telegram_username && data.telegram_username.trim().length > 0;
   }
   return true;
