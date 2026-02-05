@@ -1,30 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { after } from 'next/server';
 import { createServerClient } from '@/lib/supabase/client';
 import { Candidate } from '@/lib/supabase/types';
 
 /**
  * Trigger background AI analysis via internal API call.
- * This is fire-and-forget - we don't wait for the result.
  */
-function triggerBackgroundAnalysis(candidateId: string, baseUrl: string) {
+async function runBackgroundAnalysis(candidateId: string, baseUrl: string) {
   const internalSecret = process.env.INTERNAL_API_SECRET || 'default-secret';
 
-  // Fire-and-forget call to background analysis endpoint
-  fetch(`${baseUrl}/api/candidates/${candidateId}/analyze-background`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-internal-secret': internalSecret,
-    },
-  }).then((res) => {
-    if (!res.ok) {
-      console.error(`Background analysis trigger failed for ${candidateId}: ${res.status}`);
+  try {
+    console.log(`Starting background analysis for candidate ${candidateId}`);
+    const response = await fetch(`${baseUrl}/api/candidates/${candidateId}/analyze-background`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-internal-secret': internalSecret,
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Background analysis failed for ${candidateId}: ${response.status} - ${errorText}`);
     } else {
-      console.log(`Background analysis triggered successfully for ${candidateId}`);
+      console.log(`Background analysis completed successfully for ${candidateId}`);
     }
-  }).catch((error) => {
-    console.error(`Background analysis trigger error for ${candidateId}:`, error);
-  });
+  } catch (error) {
+    console.error(`Background analysis error for ${candidateId}:`, error);
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -141,9 +144,11 @@ export async function POST(request: NextRequest) {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL
       || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
 
-    // Trigger background AI analysis (fire-and-forget)
-    // This runs translation + AI analysis + matching in the background
-    triggerBackgroundAnalysis(candidate.id, baseUrl);
+    // Use Next.js after() to run AI analysis after response is sent
+    // This keeps the serverless function alive until the background task completes
+    after(async () => {
+      await runBackgroundAnalysis(candidate.id, baseUrl);
+    });
 
     return NextResponse.json({
       success: true,
