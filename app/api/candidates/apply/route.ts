@@ -1,207 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/client';
-import { analyzeWithClaude, parseAIAnalysisResult, parseAIMatchResult, MOCK_ANALYSIS_RESULT, MOCK_MATCH_RESULT } from '@/lib/ai/claude';
-import { GENERAL_CANDIDATE_ANALYSIS_PROMPT, MATCH_CANDIDATE_TO_REQUEST_PROMPT } from '@/lib/ai/prompts';
-import { Candidate, Request } from '@/lib/supabase/types';
-import { translateCandidateContent } from '@/lib/translation';
+import { Candidate } from '@/lib/supabase/types';
 
-const USE_MOCK_AI = process.env.NODE_ENV === 'development' && !process.env.ANTHROPIC_API_KEY;
+/**
+ * Trigger background AI analysis via internal API call.
+ * This is fire-and-forget - we don't wait for the result.
+ */
+function triggerBackgroundAnalysis(candidateId: string, baseUrl: string) {
+  const internalSecret = process.env.INTERNAL_API_SECRET || 'default-secret';
 
-// Background function to run AI analysis
-async function runBackgroundAIAnalysis(candidateId: string) {
-  try {
-    const supabase = createServerClient();
-
-    // Fetch the candidate
-    const { data: candidateData, error: candidateError } = await supabase
-      .from('candidates')
-      .select('*')
-      .eq('id', candidateId)
-      .single();
-
-    if (candidateError || !candidateData) {
-      console.error('Background AI: Candidate not found', candidateId);
-      return;
-    }
-
-    const candidate = candidateData as Candidate & {
-      about_text_translated?: string;
-      why_vamos_translated?: string;
-      key_skills_translated?: string;
-      original_language?: string;
-    };
-
-    // Create a modified candidate object for AI analysis using translated content
-    const candidateForAnalysis = {
-      ...candidate,
-      // Use translated content if available, otherwise fall back to original
-      about_text: candidate.about_text_translated || candidate.about_text,
-      why_vamos: candidate.why_vamos_translated || candidate.why_vamos,
-    };
-
-    // Run AI analysis
-    let analysis;
-    if (USE_MOCK_AI) {
-      console.log('Background AI: Using mock analysis for candidate', candidateId);
-      analysis = MOCK_ANALYSIS_RESULT;
+  // Fire-and-forget call to background analysis endpoint
+  fetch(`${baseUrl}/api/candidates/${candidateId}/analyze-background`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-internal-secret': internalSecret,
+    },
+  }).then((res) => {
+    if (!res.ok) {
+      console.error(`Background analysis trigger failed for ${candidateId}: ${res.status}`);
     } else {
-      console.log('Background AI: Running Claude analysis for candidate', candidateId);
-      const prompt = GENERAL_CANDIDATE_ANALYSIS_PROMPT(candidateForAnalysis as Candidate);
-      const response = await analyzeWithClaude(prompt);
-      analysis = parseAIAnalysisResult(response);
+      console.log(`Background analysis triggered successfully for ${candidateId}`);
     }
-
-    // Update candidate with AI results
-    await supabase
-      .from('candidates')
-      .update({
-        ai_score: analysis.score,
-        ai_category: analysis.category,
-        ai_summary: analysis.summary,
-      } as never)
-      .eq('id', candidateId);
-
-    console.log('Background AI: Analysis complete for candidate', candidateId);
-
-    // Now match to all active requests
-    const { data: requestsData } = await supabase
-      .from('requests')
-      .select('*')
-      .eq('status', 'open');
-
-    if (requestsData && requestsData.length > 0) {
-      console.log(`Background AI: Matching candidate to ${requestsData.length} open requests`);
-
-      for (const requestData of requestsData) {
-        const request = requestData as Request;
-
-        const candidateAnalysis = {
-          score: analysis.score,
-          category: analysis.category,
-          summary: analysis.summary,
-          strengths: analysis.strengths || [],
-        };
-
-        let matchResult;
-        if (USE_MOCK_AI) {
-          matchResult = MOCK_MATCH_RESULT;
-        } else {
-          const matchPrompt = MATCH_CANDIDATE_TO_REQUEST_PROMPT(candidateForAnalysis as Candidate, candidateAnalysis, request);
-          const matchResponse = await analyzeWithClaude(matchPrompt);
-          matchResult = parseAIMatchResult(matchResponse);
-        }
-
-        // Check if match already exists
-        const { data: existingMatchData } = await supabase
-          .from('candidate_request_matches')
-          .select('id')
-          .eq('candidate_id', candidateId)
-          .eq('request_id', request.id)
-          .single();
-
-        const existingMatch = existingMatchData as { id: string } | null;
-
-        if (existingMatch) {
-          await supabase
-            .from('candidate_request_matches')
-            .update({
-              match_score: matchResult.match_score,
-              match_explanation: `${matchResult.alignment}\n\nMissing: ${matchResult.missing}`,
-            } as never)
-            .eq('id', existingMatch.id);
-        } else {
-          await supabase
-            .from('candidate_request_matches')
-            .insert({
-              candidate_id: candidateId,
-              request_id: request.id,
-              match_score: matchResult.match_score,
-              match_explanation: `${matchResult.alignment}\n\nMissing: ${matchResult.missing}`,
-              status: 'new',
-            } as never);
-        }
-
-        console.log(`Background AI: Match created for request ${request.id} with score ${matchResult.match_score}`);
-      }
-
-      // Note: Outreach is now generated on-demand by managers, not automatically
-    }
-
-    console.log('Background AI: All processing complete for candidate', candidateId);
-  } catch (error) {
-    console.error('Background AI: Error processing candidate', candidateId, error);
-  }
-}
-
-// Background function to translate candidate content
-async function runBackgroundTranslation(candidateId: string, originalLanguage: string) {
-  try {
-    const supabase = createServerClient();
-
-    // Fetch the candidate
-    const { data: candidateData, error: candidateError } = await supabase
-      .from('candidates')
-      .select('*')
-      .eq('id', candidateId)
-      .single();
-
-    if (candidateError || !candidateData) {
-      console.error('Background Translation: Candidate not found', candidateId);
-      return;
-    }
-
-    const candidate = candidateData as Candidate;
-
-    // If already Ukrainian, just copy original to translated fields
-    if (originalLanguage === 'uk') {
-      await supabase
-        .from('candidates')
-        .update({
-          about_text_translated: candidate.about_text,
-          why_vamos_translated: candidate.why_vamos,
-          key_skills_translated: Array.isArray(candidate.key_skills)
-            ? candidate.key_skills.join(', ')
-            : candidate.key_skills,
-          translated_to: 'uk',
-        } as never)
-        .eq('id', candidateId);
-
-      console.log('Background Translation: Ukrainian content copied for candidate', candidateId);
-      return;
-    }
-
-    console.log(`Background Translation: Translating from ${originalLanguage} to Ukrainian for candidate`, candidateId);
-
-    // Translate content to Ukrainian
-    const translated = await translateCandidateContent({
-      from: originalLanguage,
-      to: 'uk',
-      texts: {
-        bio: candidate.about_text || undefined,
-        why_vamos: candidate.why_vamos || undefined,
-        skills: Array.isArray(candidate.key_skills)
-          ? candidate.key_skills.join(', ')
-          : (candidate.key_skills || undefined),
-      },
-    });
-
-    // Update candidate with translated content
-    await supabase
-      .from('candidates')
-      .update({
-        about_text_translated: translated.bio_translated || candidate.about_text,
-        why_vamos_translated: translated.why_vamos_translated || candidate.why_vamos,
-        key_skills_translated: translated.skills_translated || (Array.isArray(candidate.key_skills)
-          ? candidate.key_skills.join(', ')
-          : candidate.key_skills),
-        translated_to: 'uk',
-      } as never)
-      .eq('id', candidateId);
-
-    console.log('Background Translation: Translation complete for candidate', candidateId);
-  } catch (error) {
-    console.error('Background Translation: Error translating candidate', candidateId, error);
-  }
+  }).catch((error) => {
+    console.error(`Background analysis trigger error for ${candidateId}:`, error);
+  });
 }
 
 export async function POST(request: NextRequest) {
@@ -314,13 +137,13 @@ export async function POST(request: NextRequest) {
 
     const candidate = candidateData as Candidate;
 
-    // First run translation (non-blocking), then AI analysis
-    // Translation should complete first so AI can use translated content
-    setTimeout(async () => {
-      await runBackgroundTranslation(candidate.id, original_language);
-      // Run AI analysis after translation completes
-      runBackgroundAIAnalysis(candidate.id);
-    }, 0);
+    // Get base URL for internal API calls
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL
+      || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+
+    // Trigger background AI analysis (fire-and-forget)
+    // This runs translation + AI analysis + matching in the background
+    triggerBackgroundAnalysis(candidate.id, baseUrl);
 
     return NextResponse.json({
       success: true,
