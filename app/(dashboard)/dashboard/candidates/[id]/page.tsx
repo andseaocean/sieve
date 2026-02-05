@@ -27,7 +27,6 @@ import {
   getScoreColor,
   formatDate,
 } from '@/lib/utils';
-import { getLanguageName, getLanguageFlag } from '@/lib/language-utils';
 import { toast } from 'sonner';
 import {
   ArrowLeft,
@@ -38,9 +37,6 @@ import {
   FileText,
   Sparkles,
   Loader2,
-  Languages,
-  ChevronDown,
-  ChevronUp,
 } from 'lucide-react';
 
 interface Comment {
@@ -63,8 +59,6 @@ export default function CandidateDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<string>('new');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [showOriginalAbout, setShowOriginalAbout] = useState(false);
-  const [showOriginalWhyVamos, setShowOriginalWhyVamos] = useState(false);
 
   const candidateId = params.id as string;
 
@@ -160,10 +154,9 @@ export default function CandidateDetailsPage() {
     return null;
   }
 
-  // Use translated content for display, fall back to original
-  const displayAboutText = candidate.about_text_translated || candidate.about_text;
-  const displayWhyVamos = candidate.why_vamos_translated || candidate.why_vamos;
-  const hasOriginalLanguage = candidate.original_language && candidate.original_language !== 'uk';
+  // Use original content directly
+  const displayAboutText = candidate.about_text;
+  const displayWhyVamos = candidate.why_vamos;
 
   return (
     <div className="flex flex-col h-full">
@@ -274,13 +267,6 @@ export default function CandidateDetailsPage() {
                     <Badge variant="outline">
                       {candidate.source === 'warm' ? 'Warm Lead' : 'Cold Lead'}
                     </Badge>
-                    {/* Language badge */}
-                    {hasOriginalLanguage && (
-                      <Badge variant="outline" className="flex items-center gap-1">
-                        <Languages className="h-3 w-3" />
-                        {getLanguageFlag(candidate.original_language!)} {getLanguageName(candidate.original_language!, 'uk')}
-                      </Badge>
-                    )}
                   </div>
                 </div>
               </div>
@@ -356,88 +342,24 @@ export default function CandidateDetailsPage() {
 
           {/* About & Why Vamos */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {(displayAboutText || candidate.about_text) && (
+            {displayAboutText && (
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
-                    <span>Про себе</span>
-                    {hasOriginalLanguage && candidate.about_text_translated && (
-                      <Badge variant="secondary" className="text-xs">
-                        Переклад
-                      </Badge>
-                    )}
-                  </CardTitle>
+                  <CardTitle>Про себе</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent>
                   <p className="text-sm whitespace-pre-wrap">{displayAboutText}</p>
-
-                  {/* Show original toggle */}
-                  {hasOriginalLanguage && candidate.about_text && candidate.about_text !== displayAboutText && (
-                    <div className="border-t pt-4">
-                      <button
-                        onClick={() => setShowOriginalAbout(!showOriginalAbout)}
-                        className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        {showOriginalAbout ? (
-                          <ChevronUp className="h-4 w-4" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4" />
-                        )}
-                        Показати оригінал ({getLanguageName(candidate.original_language!, 'uk')})
-                      </button>
-
-                      {showOriginalAbout && (
-                        <div className="mt-3 p-4 bg-gray-50 rounded-lg">
-                          <p className="text-sm text-gray-600 whitespace-pre-wrap">
-                            {candidate.about_text}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </CardContent>
               </Card>
             )}
 
-            {(displayWhyVamos || candidate.why_vamos) && (
+            {displayWhyVamos && (
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
-                    <span>Чому Vamos?</span>
-                    {hasOriginalLanguage && candidate.why_vamos_translated && (
-                      <Badge variant="secondary" className="text-xs">
-                        Переклад
-                      </Badge>
-                    )}
-                  </CardTitle>
+                  <CardTitle>Чому Vamos?</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent>
                   <p className="text-sm whitespace-pre-wrap">{displayWhyVamos}</p>
-
-                  {/* Show original toggle */}
-                  {hasOriginalLanguage && candidate.why_vamos && candidate.why_vamos !== displayWhyVamos && (
-                    <div className="border-t pt-4">
-                      <button
-                        onClick={() => setShowOriginalWhyVamos(!showOriginalWhyVamos)}
-                        className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        {showOriginalWhyVamos ? (
-                          <ChevronUp className="h-4 w-4" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4" />
-                        )}
-                        Показати оригінал ({getLanguageName(candidate.original_language!, 'uk')})
-                      </button>
-
-                      {showOriginalWhyVamos && (
-                        <div className="mt-3 p-4 bg-gray-50 rounded-lg">
-                          <p className="text-sm text-gray-600 whitespace-pre-wrap">
-                            {candidate.why_vamos}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </CardContent>
               </Card>
             )}
@@ -523,9 +445,6 @@ export default function CandidateDetailsPage() {
             <CardContent className="pt-6">
               <p className="text-sm text-muted-foreground">
                 Додано: {formatDate(candidate.created_at)}
-                {hasOriginalLanguage && (
-                  <> • Мова заявки: {getLanguageFlag(candidate.original_language!)} {getLanguageName(candidate.original_language!, 'uk')}</>
-                )}
               </p>
             </CardContent>
           </Card>

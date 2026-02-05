@@ -14,7 +14,6 @@ import { StepIndicator } from '@/components/public/step-indicator';
 import { toast } from 'sonner';
 import { Loader2, ArrowRight, ArrowLeft, Mail, MessageCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { detectLanguageFromText } from '@/lib/language-utils';
 
 const steps = [
   { id: 1, title: 'Контакти' },
@@ -155,11 +154,6 @@ export default function ApplyPage() {
       if (data.telegram_username) {
         formData.append('telegram_username', data.telegram_username);
       }
-
-      // Detect language from text content
-      const combinedText = `${data.about_text} ${data.why_vamos}`;
-      const detectedLanguage = detectLanguageFromText(combinedText);
-      formData.append('original_language', detectedLanguage);
 
       const response = await fetch('/api/candidates/apply', {
         method: 'POST',
