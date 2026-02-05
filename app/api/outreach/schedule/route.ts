@@ -10,7 +10,8 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth';
 import { createServiceRoleClient } from '@/lib/supabase/client';
 import { calculateScheduledTime } from '@/lib/outreach/scheduler';
-import { Candidate, Request } from '@/lib/supabase/types';
+import { processOutreachItem } from '@/lib/outreach/processor';
+import { Candidate, Request, OutreachQueue } from '@/lib/supabase/types';
 
 interface CandidateWithMatches extends Candidate {
   candidate_request_matches?: Array<{
@@ -94,7 +95,7 @@ export async function POST(request: NextRequest) {
       : calculateScheduledTime(new Date());
 
     // Create queue entry
-    const { error: queueError } = await supabase
+    const { data: queueData, error: queueError } = await supabase
       .from('outreach_queue')
       .insert({
         candidate_id: candidateId,
@@ -103,9 +104,11 @@ export async function POST(request: NextRequest) {
         delivery_method: contactMethod,
         scheduled_for: scheduledFor.toISOString(),
         status: 'scheduled',
-      } as never);
+      } as never)
+      .select('*, candidates(*)')
+      .single();
 
-    if (queueError) {
+    if (queueError || !queueData) {
       console.error('Failed to schedule outreach:', queueError);
       console.error('Queue error details:', JSON.stringify(queueError, null, 2));
       console.error('Insert data:', {
@@ -116,33 +119,52 @@ export async function POST(request: NextRequest) {
         status: 'scheduled',
       });
       return NextResponse.json(
-        { error: `Failed to schedule message: ${queueError.message || 'Unknown error'}` },
+        { error: `Failed to schedule message: ${queueError?.message || 'Unknown error'}` },
         { status: 500 }
       );
     }
 
-    // Update candidate status
-    const updateData: Record<string, unknown> = {
-      outreach_status: sendNow ? 'sent' : 'scheduled',
-    };
-
+    // If sendNow, immediately process the outreach (send email)
     if (sendNow) {
-      updateData.outreach_sent_at = new Date().toISOString();
+      console.log(`Sending outreach immediately for candidate ${candidateId}`);
+
+      const outreachItem = queueData as OutreachQueue & { candidates: Candidate };
+      const result = await processOutreachItem(outreachItem);
+
+      if (!result.success) {
+        console.error('Failed to send outreach immediately:', result.error);
+        return NextResponse.json(
+          { error: `Failed to send message: ${result.error}` },
+          { status: 500 }
+        );
+      }
+
+      console.log(`Outreach sent successfully for candidate ${candidateId}`);
+
+      return NextResponse.json({
+        success: true,
+        scheduledFor: scheduledFor.toISOString(),
+        sendNow: true,
+        messageId: result.messageId,
+      });
     }
 
+    // For scheduled sends, just update candidate status
     await supabase
       .from('candidates')
-      .update(updateData as never)
+      .update({
+        outreach_status: 'scheduled',
+      } as never)
       .eq('id', candidateId);
 
     console.log(
-      `Outreach ${sendNow ? 'sent' : 'scheduled'} for candidate ${candidateId} at ${scheduledFor.toISOString()}`
+      `Outreach scheduled for candidate ${candidateId} at ${scheduledFor.toISOString()}`
     );
 
     return NextResponse.json({
       success: true,
       scheduledFor: scheduledFor.toISOString(),
-      sendNow,
+      sendNow: false,
     });
   } catch (error) {
     console.error('Error scheduling outreach:', error);
