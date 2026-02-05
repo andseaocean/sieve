@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/client';
-import { analyzeWithClaude, parseAIAnalysisResult, parseAIMatchResult, MOCK_ANALYSIS_RESULT, MOCK_MATCH_RESULT, AIAnalysisResult } from '@/lib/ai/claude';
+import { analyzeWithClaude, parseAIAnalysisResult, parseAIMatchResult, MOCK_ANALYSIS_RESULT, MOCK_MATCH_RESULT } from '@/lib/ai/claude';
 import { GENERAL_CANDIDATE_ANALYSIS_PROMPT, MATCH_CANDIDATE_TO_REQUEST_PROMPT } from '@/lib/ai/prompts';
 import { Candidate, Request } from '@/lib/supabase/types';
 import { translateCandidateContent } from '@/lib/translation';
-import { scheduleOutreachAfterAnalysis } from '@/lib/outreach/schedule-outreach';
 
 const USE_MOCK_AI = process.env.NODE_ENV === 'development' && !process.env.ANTHROPIC_API_KEY;
 
@@ -125,40 +124,7 @@ async function runBackgroundAIAnalysis(candidateId: string) {
         console.log(`Background AI: Match created for request ${request.id} with score ${matchResult.match_score}`);
       }
 
-      // Find best match for outreach (score >= 60)
-      const { data: bestMatchData } = await supabase
-        .from('candidate_request_matches')
-        .select('match_score, requests(*)')
-        .eq('candidate_id', candidateId)
-        .order('match_score', { ascending: false })
-        .limit(1)
-        .single();
-
-      let bestMatch: { request: Request; match_score: number } | undefined;
-      const matchData = bestMatchData as { match_score: number | null; requests: unknown } | null;
-      if (matchData && matchData.match_score && matchData.match_score >= 60) {
-        bestMatch = {
-          request: matchData.requests as Request,
-          match_score: matchData.match_score,
-        };
-      }
-
-      // Schedule outreach for warm candidates with high scores
-      const outreachAnalysis: AIAnalysisResult = {
-        score: analysis.score,
-        category: analysis.category,
-        summary: analysis.summary,
-        strengths: analysis.strengths || [],
-        concerns: analysis.concerns || [],
-        recommendation: analysis.recommendation,
-        reasoning: analysis.reasoning,
-      };
-
-      await scheduleOutreachAfterAnalysis({
-        candidateId,
-        analysis: outreachAnalysis,
-        bestMatch,
-      });
+      // Note: Outreach is now generated on-demand by managers, not automatically
     }
 
     console.log('Background AI: All processing complete for candidate', candidateId);

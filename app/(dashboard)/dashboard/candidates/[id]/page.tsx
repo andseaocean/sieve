@@ -430,7 +430,14 @@ export default function CandidateDetailsPage() {
 
           {/* Outreach section - only for warm candidates */}
           {candidate.source === 'warm' && (
-            <OutreachPreview candidateId={candidateId} />
+            <OutreachPreview
+              candidateId={candidateId}
+              candidateName={`${candidate.first_name} ${candidate.last_name}`}
+              aiScore={candidate.ai_score}
+              email={candidate.email}
+              telegramUsername={candidate.telegram_username}
+              preferredContactMethods={candidate.preferred_contact_methods}
+            />
           )}
 
           {/* Comments section */}
