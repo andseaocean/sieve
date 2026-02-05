@@ -1,34 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { after } from 'next/server';
-import { createServerClient } from '@/lib/supabase/client';
+import { createServiceRoleClient } from '@/lib/supabase/client';
 import { Candidate } from '@/lib/supabase/types';
-
-/**
- * Trigger background AI analysis via internal API call.
- */
-async function runBackgroundAnalysis(candidateId: string, baseUrl: string) {
-  const internalSecret = process.env.INTERNAL_API_SECRET || 'default-secret';
-
-  try {
-    console.log(`Starting background analysis for candidate ${candidateId}`);
-    const response = await fetch(`${baseUrl}/api/candidates/${candidateId}/analyze-background`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-internal-secret': internalSecret,
-      },
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Background analysis failed for ${candidateId}: ${response.status} - ${errorText}`);
-    } else {
-      console.log(`Background analysis completed successfully for ${candidateId}`);
-    }
-  } catch (error) {
-    console.error(`Background analysis error for ${candidateId}:`, error);
-  }
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -71,7 +43,7 @@ export async function POST(request: NextRequest) {
       ? key_skills_string.split(',').map((s) => s.trim()).filter(Boolean)
       : [];
 
-    const supabase = createServerClient();
+    const supabase = createServiceRoleClient();
 
     // Check if candidate with this email already exists
     const { data: existingCandidate } = await supabase
@@ -140,15 +112,20 @@ export async function POST(request: NextRequest) {
 
     const candidate = candidateData as Candidate;
 
-    // Get base URL for internal API calls
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL
-      || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+    // Add candidate to AI analysis queue (processed by cron job)
+    const { error: queueError } = await supabase
+      .from('ai_analysis_queue')
+      .insert({
+        candidate_id: candidate.id,
+        status: 'pending',
+      } as never);
 
-    // Use Next.js after() to run AI analysis after response is sent
-    // This keeps the serverless function alive until the background task completes
-    after(async () => {
-      await runBackgroundAnalysis(candidate.id, baseUrl);
-    });
+    if (queueError) {
+      // Log but don't fail - candidate was created successfully
+      console.error('Error adding to AI analysis queue:', queueError);
+    } else {
+      console.log(`Candidate ${candidate.id} added to AI analysis queue`);
+    }
 
     return NextResponse.json({
       success: true,
