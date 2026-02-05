@@ -8,7 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth';
-import { createServerClient } from '@/lib/supabase/client';
+import { createServiceRoleClient } from '@/lib/supabase/client';
 import { calculateScheduledTime } from '@/lib/outreach/scheduler';
 import { Candidate, Request } from '@/lib/supabase/types';
 
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = createServerClient();
+    const supabase = createServiceRoleClient();
 
     // Get candidate and best matching request
     const { data: candidateData, error: candidateError } = await supabase
@@ -107,8 +107,16 @@ export async function POST(request: NextRequest) {
 
     if (queueError) {
       console.error('Failed to schedule outreach:', queueError);
+      console.error('Queue error details:', JSON.stringify(queueError, null, 2));
+      console.error('Insert data:', {
+        candidate_id: candidateId,
+        request_id: bestMatchRequestId,
+        delivery_method: contactMethod,
+        scheduled_for: scheduledFor.toISOString(),
+        status: 'scheduled',
+      });
       return NextResponse.json(
-        { error: 'Failed to schedule message' },
+        { error: `Failed to schedule message: ${queueError.message || 'Unknown error'}` },
         { status: 500 }
       );
     }
