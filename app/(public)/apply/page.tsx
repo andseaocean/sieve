@@ -46,7 +46,8 @@ const applicationSchema = z.object({
   resume: z.any().optional(),
 }).refine((data) => {
   // If telegram is selected, username is required
-  if (data.preferred_contact_methods?.includes('telegram')) {
+  const methods = data.preferred_contact_methods;
+  if (Array.isArray(methods) && methods.includes('telegram')) {
     return data.telegram_username && data.telegram_username.trim().length > 0;
   }
   return true;
@@ -72,6 +73,9 @@ export default function ApplyPage() {
   } = useForm<ApplicationFormData>({
     resolver: zodResolver(applicationSchema),
     mode: 'onChange',
+    defaultValues: {
+      preferred_contact_methods: [],
+    },
   });
 
   const watchContactMethods = watch('preferred_contact_methods');
@@ -83,7 +87,7 @@ export default function ApplyPage() {
       case 1:
         fieldsToValidate = ['first_name', 'last_name', 'email', 'preferred_contact_methods'];
         // Also validate telegram_username if telegram is selected
-        if (watchContactMethods?.includes('telegram')) {
+        if (Array.isArray(watchContactMethods) && watchContactMethods.includes('telegram')) {
           fieldsToValidate.push('telegram_username');
         }
         break;
@@ -286,7 +290,7 @@ export default function ApplyPage() {
                     </div>
 
                     {/* Telegram Username - conditional */}
-                    {watchContactMethods?.includes('telegram') && (
+                    {Array.isArray(watchContactMethods) && watchContactMethods.includes('telegram') && (
                       <div className="space-y-2">
                         <Label htmlFor="telegram_username">Telegram username *</Label>
                         <div className="relative">
