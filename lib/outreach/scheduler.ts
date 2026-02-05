@@ -136,10 +136,25 @@ export function formatScheduledTimeRelative(date: Date): string {
  * Falls back to email if telegram is selected but no username provided
  */
 export function determineDeliveryMethod(
-  preferredMethods: ContactMethod[] | null,
+  preferredMethods: ContactMethod[] | string | null,
   telegramUsername: string | null
 ): ContactMethod {
-  const methods = preferredMethods || ['email'];
+  // Handle various formats: array, JSON string, or null
+  let methods: ContactMethod[];
+
+  if (!preferredMethods) {
+    methods = ['email'];
+  } else if (typeof preferredMethods === 'string') {
+    try {
+      methods = JSON.parse(preferredMethods) as ContactMethod[];
+    } catch {
+      methods = ['email'];
+    }
+  } else if (Array.isArray(preferredMethods)) {
+    methods = preferredMethods;
+  } else {
+    methods = ['email'];
+  }
 
   // Prefer telegram if selected AND username is provided
   if (methods.includes('telegram') && telegramUsername && telegramUsername.trim().length > 0) {
