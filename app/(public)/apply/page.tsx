@@ -12,7 +12,8 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { StepIndicator } from '@/components/public/step-indicator';
 import { toast } from 'sonner';
-import { Loader2, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Loader2, ArrowRight, ArrowLeft, Mail, MessageCircle } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const steps = [
   { id: 1, title: 'Контакти' },
@@ -28,6 +29,9 @@ const applicationSchema = z.object({
   last_name: z.string().min(2, 'Прізвище повинно містити мінімум 2 символи'),
   email: z.string().email('Невірний формат email'),
   phone: z.string().optional(),
+  preferred_contact_methods: z.array(z.enum(['email', 'telegram']))
+    .min(1, 'Оберіть хоча б один спосіб зв\'язку'),
+  telegram_username: z.string().optional(),
 
   // Step 2: About
   about_text: z.string().min(50, 'Розкажіть про себе детальніше (мінімум 50 символів)'),
@@ -40,6 +44,15 @@ const applicationSchema = z.object({
 
   // Step 4: Resume
   resume: z.any().optional(),
+}).refine((data) => {
+  // If telegram is selected, username is required
+  if (data.preferred_contact_methods.includes('telegram')) {
+    return data.telegram_username && data.telegram_username.trim().length > 0;
+  }
+  return true;
+}, {
+  message: 'Введіть ваш Telegram username',
+  path: ['telegram_username'],
 });
 
 type ApplicationFormData = z.infer<typeof applicationSchema>;
@@ -61,12 +74,18 @@ export default function ApplyPage() {
     mode: 'onChange',
   });
 
+  const watchContactMethods = watch('preferred_contact_methods');
+
   const validateCurrentStep = async (): Promise<boolean> => {
     let fieldsToValidate: (keyof ApplicationFormData)[] = [];
 
     switch (currentStep) {
       case 1:
-        fieldsToValidate = ['first_name', 'last_name', 'email'];
+        fieldsToValidate = ['first_name', 'last_name', 'email', 'preferred_contact_methods'];
+        // Also validate telegram_username if telegram is selected
+        if (watchContactMethods?.includes('telegram')) {
+          fieldsToValidate.push('telegram_username');
+        }
         break;
       case 2:
         fieldsToValidate = ['about_text', 'why_vamos'];
@@ -126,6 +145,11 @@ export default function ApplyPage() {
       if (data.linkedin_url) formData.append('linkedin_url', data.linkedin_url);
       if (data.portfolio_url) formData.append('portfolio_url', data.portfolio_url);
       if (resumeFile) formData.append('resume', resumeFile);
+      // Contact preferences
+      formData.append('preferred_contact_methods', JSON.stringify(data.preferred_contact_methods));
+      if (data.telegram_username) {
+        formData.append('telegram_username', data.telegram_username);
+      }
 
       const response = await fetch('/api/candidates/apply', {
         method: 'POST',
@@ -224,6 +248,64 @@ export default function ApplyPage() {
                         {...register('phone')}
                       />
                     </div>
+
+                    {/* Contact Preferences */}
+                    <div className="space-y-3 pt-4 border-t">
+                      <Label>Як з вами зв&apos;язатися? *</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Оберіть зручний спосіб для отримання повідомлень від нас
+                      </p>
+
+                      <div className="space-y-2">
+                        <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                          <input
+                            type="checkbox"
+                            value="email"
+                            {...register('preferred_contact_methods')}
+                            className="h-4 w-4 rounded border-gray-300"
+                          />
+                          <Mail className="h-4 w-4 text-muted-foreground" />
+                          <span>Email</span>
+                        </label>
+
+                        <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                          <input
+                            type="checkbox"
+                            value="telegram"
+                            {...register('preferred_contact_methods')}
+                            className="h-4 w-4 rounded border-gray-300"
+                          />
+                          <MessageCircle className="h-4 w-4 text-muted-foreground" />
+                          <span>Telegram</span>
+                        </label>
+                      </div>
+
+                      {errors.preferred_contact_methods && (
+                        <p className="text-sm text-red-500">{errors.preferred_contact_methods.message}</p>
+                      )}
+                    </div>
+
+                    {/* Telegram Username - conditional */}
+                    {watchContactMethods?.includes('telegram') && (
+                      <div className="space-y-2">
+                        <Label htmlFor="telegram_username">Telegram username *</Label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">@</span>
+                          <Input
+                            id="telegram_username"
+                            placeholder="your_username"
+                            {...register('telegram_username')}
+                            className={cn("pl-8", errors.telegram_username && 'border-red-500')}
+                          />
+                        </div>
+                        {errors.telegram_username && (
+                          <p className="text-sm text-red-500">{errors.telegram_username.message}</p>
+                        )}
+                        <p className="text-xs text-muted-foreground">
+                          Без символу @. Приклад: ivan_petrov
+                        </p>
+                      </div>
+                    )}
                   </CardContent>
                 </>
               )}

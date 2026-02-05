@@ -6,6 +6,12 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[];
 
+// Outreach-related types
+export type OutreachStatus = 'pending' | 'scheduled' | 'sent' | 'responded' | 'declined' | 'cancelled';
+export type OutreachQueueStatus = 'scheduled' | 'processing' | 'sent' | 'failed' | 'cancelled';
+export type ContactMethod = 'email' | 'telegram';
+export type OutreachMessageType = 'intro' | 'test_task' | 'follow_up';
+
 export type Database = {
   public: {
     Tables: {
@@ -54,6 +60,7 @@ export type Database = {
           qualification_questions: Json;
           created_at: string;
           updated_at: string;
+          test_task_notion_url: string | null;
         };
         Insert: {
           id?: string;
@@ -73,6 +80,7 @@ export type Database = {
           qualification_questions?: Json;
           created_at?: string;
           updated_at?: string;
+          test_task_notion_url?: string | null;
         };
         Update: {
           id?: string;
@@ -92,6 +100,7 @@ export type Database = {
           qualification_questions?: Json;
           created_at?: string;
           updated_at?: string;
+          test_task_notion_url?: string | null;
         };
       };
       candidates: {
@@ -131,6 +140,12 @@ export type Database = {
           about_text_translated: string | null;
           why_vamos_translated: string | null;
           key_skills_translated: string | null;
+          // Outreach fields
+          telegram_username: string | null;
+          preferred_contact_methods: ContactMethod[] | null;
+          outreach_status: OutreachStatus | null;
+          outreach_sent_at: string | null;
+          candidate_response: string | null;
         };
         Insert: {
           id?: string;
@@ -168,6 +183,12 @@ export type Database = {
           about_text_translated?: string | null;
           why_vamos_translated?: string | null;
           key_skills_translated?: string | null;
+          // Outreach fields
+          telegram_username?: string | null;
+          preferred_contact_methods?: ContactMethod[] | null;
+          outreach_status?: OutreachStatus | null;
+          outreach_sent_at?: string | null;
+          candidate_response?: string | null;
         };
         Update: {
           id?: string;
@@ -205,6 +226,12 @@ export type Database = {
           about_text_translated?: string | null;
           why_vamos_translated?: string | null;
           key_skills_translated?: string | null;
+          // Outreach fields
+          telegram_username?: string | null;
+          preferred_contact_methods?: ContactMethod[] | null;
+          outreach_status?: OutreachStatus | null;
+          outreach_sent_at?: string | null;
+          candidate_response?: string | null;
         };
       };
       candidate_request_matches: {
@@ -265,6 +292,106 @@ export type Database = {
           created_at?: string;
         };
       };
+      outreach_queue: {
+        Row: {
+          id: string;
+          candidate_id: string;
+          request_id: string | null;
+          intro_message: string;
+          test_task_message: string | null;
+          delivery_method: ContactMethod;
+          scheduled_for: string;
+          status: OutreachQueueStatus;
+          error_message: string | null;
+          retry_count: number;
+          created_at: string;
+          updated_at: string;
+          sent_at: string | null;
+          edited_by: string | null;
+          edited_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          candidate_id: string;
+          request_id?: string | null;
+          intro_message: string;
+          test_task_message?: string | null;
+          delivery_method: ContactMethod;
+          scheduled_for: string;
+          status?: OutreachQueueStatus;
+          error_message?: string | null;
+          retry_count?: number;
+          created_at?: string;
+          updated_at?: string;
+          sent_at?: string | null;
+          edited_by?: string | null;
+          edited_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          candidate_id?: string;
+          request_id?: string | null;
+          intro_message?: string;
+          test_task_message?: string | null;
+          delivery_method?: ContactMethod;
+          scheduled_for?: string;
+          status?: OutreachQueueStatus;
+          error_message?: string | null;
+          retry_count?: number;
+          created_at?: string;
+          updated_at?: string;
+          sent_at?: string | null;
+          edited_by?: string | null;
+          edited_at?: string | null;
+        };
+      };
+      outreach_messages: {
+        Row: {
+          id: string;
+          candidate_id: string;
+          request_id: string | null;
+          message_type: OutreachMessageType;
+          content: string;
+          delivery_method: ContactMethod;
+          sent_at: string;
+          delivered_at: string | null;
+          read_at: string | null;
+          response: string | null;
+          responded_at: string | null;
+          external_message_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          candidate_id: string;
+          request_id?: string | null;
+          message_type: OutreachMessageType;
+          content: string;
+          delivery_method: ContactMethod;
+          sent_at: string;
+          delivered_at?: string | null;
+          read_at?: string | null;
+          response?: string | null;
+          responded_at?: string | null;
+          external_message_id?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          candidate_id?: string;
+          request_id?: string | null;
+          message_type?: OutreachMessageType;
+          content?: string;
+          delivery_method?: ContactMethod;
+          sent_at?: string;
+          delivered_at?: string | null;
+          read_at?: string | null;
+          response?: string | null;
+          responded_at?: string | null;
+          external_message_id?: string | null;
+          created_at?: string;
+        };
+      };
     };
     Views: {
       [_ in never]: never;
@@ -284,6 +411,8 @@ export type Request = Database['public']['Tables']['requests']['Row'];
 export type Candidate = Database['public']['Tables']['candidates']['Row'];
 export type CandidateRequestMatch = Database['public']['Tables']['candidate_request_matches']['Row'];
 export type Comment = Database['public']['Tables']['comments']['Row'];
+export type OutreachQueue = Database['public']['Tables']['outreach_queue']['Row'];
+export type OutreachMessage = Database['public']['Tables']['outreach_messages']['Row'];
 
 // Insert types
 export type ManagerInsert = Database['public']['Tables']['managers']['Insert'];
@@ -291,6 +420,8 @@ export type RequestInsert = Database['public']['Tables']['requests']['Insert'];
 export type CandidateInsert = Database['public']['Tables']['candidates']['Insert'];
 export type CandidateRequestMatchInsert = Database['public']['Tables']['candidate_request_matches']['Insert'];
 export type CommentInsert = Database['public']['Tables']['comments']['Insert'];
+export type OutreachQueueInsert = Database['public']['Tables']['outreach_queue']['Insert'];
+export type OutreachMessageInsert = Database['public']['Tables']['outreach_messages']['Insert'];
 
 // Update types
 export type ManagerUpdate = Database['public']['Tables']['managers']['Update'];
@@ -298,6 +429,8 @@ export type RequestUpdate = Database['public']['Tables']['requests']['Update'];
 export type CandidateUpdate = Database['public']['Tables']['candidates']['Update'];
 export type CandidateRequestMatchUpdate = Database['public']['Tables']['candidate_request_matches']['Update'];
 export type CommentUpdate = Database['public']['Tables']['comments']['Update'];
+export type OutreachQueueUpdate = Database['public']['Tables']['outreach_queue']['Update'];
+export type OutreachMessageUpdate = Database['public']['Tables']['outreach_messages']['Update'];
 
 // Enum types for better type safety
 export type ManagerRole = 'admin' | 'manager';
