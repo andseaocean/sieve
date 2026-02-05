@@ -27,7 +27,7 @@ import {
   getScoreColor,
   formatDate,
 } from '@/lib/utils';
-import { getLanguageName, getLanguageFlag } from '@/lib/translation';
+import { getLanguageName, getLanguageFlag } from '@/lib/language-utils';
 import { toast } from 'sonner';
 import {
   ArrowLeft,
