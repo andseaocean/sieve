@@ -265,6 +265,17 @@ async function sendTestTaskDirectly(
   supabase: ReturnType<typeof createServiceRoleClient>
 ) {
   try {
+    // Prevent duplicate sending
+    const status = candidate.test_task_status as string | null;
+    if (status && status !== 'not_sent') {
+      if (status === 'sent' || status === 'scheduled') {
+        await sendTelegramMessage(chatId, 'Тестове завдання вже надіслано! Перевірте попередні повідомлення.');
+      } else if (status === 'submitted') {
+        await sendTelegramMessage(chatId, 'Ви вже здали тестове завдання. Очікуйте на результати!');
+      }
+      return;
+    }
+
     // Find the matching request
     const { data: matchData } = await supabase
       .from('candidate_request_matches')
