@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase/client';
+import { createServiceRoleClient } from '@/lib/supabase/client';
 import { classifyResponse } from '@/lib/ai/classifyResponse';
 import { analyzeWithClaude } from '@/lib/ai/claude';
 import { Candidate } from '@/lib/supabase/types';
@@ -71,6 +71,7 @@ async function answerCallbackQuery(callbackQueryId: string, text?: string) {
 export async function POST(request: NextRequest) {
   try {
     const update: TelegramUpdate = await request.json();
+    console.log('Telegram webhook received:', JSON.stringify(update).slice(0, 500));
 
     // Handle callback queries (feedback buttons)
     if (update.callback_query) {
@@ -113,7 +114,7 @@ async function handleMessage(message: TelegramMessage) {
     return;
   }
 
-  const supabase = createServerClient();
+  const supabase = createServiceRoleClient();
 
   // Find candidate by telegram username
   const telegramUsername = message.from.username;
@@ -129,6 +130,7 @@ async function handleMessage(message: TelegramMessage) {
   }
 
   if (!candidate) {
+    console.log(`Candidate not found. Telegram username: ${telegramUsername}, userId: ${telegramUserId}`);
     await sendTelegramMessage(chatId,
       'Вибачте, не можу знайти ваш профіль. Будь ласка, спочатку подайте заявку через форму.'
     );
@@ -285,7 +287,7 @@ async function handleCallbackQuery(callbackQuery: TelegramUpdate['callback_query
   const candidateId = feedbackMatch[2];
   const feedbackText = feedbackMap[feedbackType] || feedbackType;
 
-  const supabase = createServerClient();
+  const supabase = createServiceRoleClient();
 
   await supabase
     .from('candidates')
