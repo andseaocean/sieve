@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Header } from '@/components/dashboard/header';
 import { CommentSection } from '@/components/candidates/comment-section';
 import { OutreachPreview } from '@/components/outreach/outreach-preview';
+import { TestTaskTimeline } from '@/components/dashboard/test-task/TestTaskTimeline';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -439,6 +440,9 @@ export default function CandidateDetailsPage() {
               preferredContactMethods={candidate.preferred_contact_methods}
             />
           )}
+
+          {/* Test Task Timeline */}
+          <TestTaskTimeline candidate={candidate} />
 
           {/* Comments section */}
           <CommentSection

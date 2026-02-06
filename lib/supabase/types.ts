@@ -11,6 +11,9 @@ export type OutreachStatus = 'pending' | 'scheduled' | 'sent' | 'responded' | 'd
 export type OutreachQueueStatus = 'scheduled' | 'processing' | 'sent' | 'failed' | 'cancelled';
 export type ContactMethod = 'email' | 'telegram';
 export type OutreachMessageType = 'intro' | 'test_task' | 'follow_up';
+export type TestTaskStatus = 'not_sent' | 'scheduled' | 'sent' | 'submitted_on_time' | 'submitted_late' | 'evaluating' | 'evaluated';
+export type ConversationDirection = 'outbound' | 'inbound';
+export type ConversationMessageType = 'outreach' | 'test_task' | 'candidate_response' | 'ai_reply' | 'deadline_extension_request' | 'deadline_extension_granted' | 'deadline_extension_denied';
 
 export type Database = {
   public: {
@@ -155,6 +158,18 @@ export type Database = {
           outreach_status: OutreachStatus | null;
           outreach_sent_at: string | null;
           candidate_response: string | null;
+          // Test task fields
+          test_task_status: TestTaskStatus;
+          test_task_sent_at: string | null;
+          test_task_original_deadline: string | null;
+          test_task_current_deadline: string | null;
+          test_task_extensions_count: number;
+          test_task_submitted_at: string | null;
+          test_task_submission_text: string | null;
+          test_task_candidate_feedback: string | null;
+          test_task_ai_score: number | null;
+          test_task_ai_evaluation: string | null;
+          test_task_late_by_hours: number | null;
         };
         Insert: {
           id?: string;
@@ -198,6 +213,18 @@ export type Database = {
           outreach_status?: OutreachStatus | null;
           outreach_sent_at?: string | null;
           candidate_response?: string | null;
+          // Test task fields
+          test_task_status?: TestTaskStatus;
+          test_task_sent_at?: string | null;
+          test_task_original_deadline?: string | null;
+          test_task_current_deadline?: string | null;
+          test_task_extensions_count?: number;
+          test_task_submitted_at?: string | null;
+          test_task_submission_text?: string | null;
+          test_task_candidate_feedback?: string | null;
+          test_task_ai_score?: number | null;
+          test_task_ai_evaluation?: string | null;
+          test_task_late_by_hours?: number | null;
         };
         Update: {
           id?: string;
@@ -241,6 +268,50 @@ export type Database = {
           outreach_status?: OutreachStatus | null;
           outreach_sent_at?: string | null;
           candidate_response?: string | null;
+          // Test task fields
+          test_task_status?: TestTaskStatus;
+          test_task_sent_at?: string | null;
+          test_task_original_deadline?: string | null;
+          test_task_current_deadline?: string | null;
+          test_task_extensions_count?: number;
+          test_task_submitted_at?: string | null;
+          test_task_submission_text?: string | null;
+          test_task_candidate_feedback?: string | null;
+          test_task_ai_score?: number | null;
+          test_task_ai_evaluation?: string | null;
+          test_task_late_by_hours?: number | null;
+        };
+      };
+      candidate_conversations: {
+        Row: {
+          id: string;
+          candidate_id: string;
+          direction: ConversationDirection;
+          message_type: ConversationMessageType;
+          content: string;
+          metadata: Json;
+          sent_at: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          candidate_id: string;
+          direction: ConversationDirection;
+          message_type: ConversationMessageType;
+          content: string;
+          metadata?: Json;
+          sent_at?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          candidate_id?: string;
+          direction?: ConversationDirection;
+          message_type?: ConversationMessageType;
+          content?: string;
+          metadata?: Json;
+          sent_at?: string;
+          created_at?: string;
         };
       };
       candidate_request_matches: {
@@ -422,6 +493,7 @@ export type CandidateRequestMatch = Database['public']['Tables']['candidate_requ
 export type Comment = Database['public']['Tables']['comments']['Row'];
 export type OutreachQueue = Database['public']['Tables']['outreach_queue']['Row'];
 export type OutreachMessage = Database['public']['Tables']['outreach_messages']['Row'];
+export type CandidateConversation = Database['public']['Tables']['candidate_conversations']['Row'];
 
 // Insert types
 export type ManagerInsert = Database['public']['Tables']['managers']['Insert'];
@@ -431,6 +503,7 @@ export type CandidateRequestMatchInsert = Database['public']['Tables']['candidat
 export type CommentInsert = Database['public']['Tables']['comments']['Insert'];
 export type OutreachQueueInsert = Database['public']['Tables']['outreach_queue']['Insert'];
 export type OutreachMessageInsert = Database['public']['Tables']['outreach_messages']['Insert'];
+export type CandidateConversationInsert = Database['public']['Tables']['candidate_conversations']['Insert'];
 
 // Update types
 export type ManagerUpdate = Database['public']['Tables']['managers']['Update'];
