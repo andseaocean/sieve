@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/client';
 import { classifyResponse } from '@/lib/ai/classifyResponse';
 import { analyzeWithClaude } from '@/lib/ai/claude';
-import { Candidate } from '@/lib/supabase/types';
+import { generateTestTaskMessage } from '@/lib/outreach/message-generator';
+import { Candidate, Request } from '@/lib/supabase/types';
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL || '';
@@ -157,16 +158,8 @@ async function handleMessage(message: TelegramMessage) {
   // Handle based on classification
   switch (classification.category) {
     case 'positive_ready': {
-      // Schedule test task
-      await fetch(`${BASE_URL}/api/test-task/schedule`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          candidateId: candidate.id,
-          sendImmediately: false,
-        }),
-      });
-      await sendTelegramMessage(chatId, 'Чудово! Незабаром надішлю вам тестове завдання.');
+      // Send test task immediately
+      await sendTestTaskDirectly(chatId, candidate, supabase);
       break;
     }
 
@@ -263,6 +256,83 @@ async function handleMessage(message: TelegramMessage) {
       await sendTelegramMessage(chatId, 'Дякую за повідомлення! Ми переглянемо і відповімо найближчим часом.');
       break;
     }
+  }
+}
+
+async function sendTestTaskDirectly(
+  chatId: number,
+  candidate: Candidate,
+  supabase: ReturnType<typeof createServiceRoleClient>
+) {
+  try {
+    // Find the matching request
+    const { data: matchData } = await supabase
+      .from('candidate_request_matches')
+      .select('request_id')
+      .eq('candidate_id', candidate.id)
+      .order('match_score', { ascending: false })
+      .limit(1)
+      .single();
+
+    const match = matchData as { request_id: string } | null;
+    if (!match) {
+      await sendTelegramMessage(chatId, 'Наразі немає відкритих позицій для тестового завдання. Ми повідомимо, коли з\'явиться!');
+      return;
+    }
+
+    const { data: reqData } = await supabase
+      .from('requests')
+      .select('*')
+      .eq('id', match.request_id)
+      .single();
+
+    const req = reqData as Request | null;
+    if (!req || !req.test_task_url) {
+      await sendTelegramMessage(chatId, 'Тестове завдання для цієї позиції ще готується. Ми надішлемо його найближчим часом!');
+      return;
+    }
+
+    // Generate message
+    const testTaskMessage = await generateTestTaskMessage(candidate, req, req.test_task_url);
+
+    // Calculate deadline
+    const now = new Date();
+    const deadlineDays = req.test_task_deadline_days || 3;
+    const deadline = new Date(now);
+    deadline.setDate(deadline.getDate() + deadlineDays);
+    deadline.setHours(18, 0, 0, 0);
+
+    // Send via Telegram
+    await sendTelegramMessage(chatId, testTaskMessage);
+
+    // Update candidate status
+    await supabase
+      .from('candidates')
+      .update({
+        test_task_status: 'sent',
+        test_task_sent_at: now.toISOString(),
+        test_task_original_deadline: deadline.toISOString(),
+        test_task_current_deadline: deadline.toISOString(),
+      } as never)
+      .eq('id', candidate.id);
+
+    // Log in conversations
+    await supabase.from('candidate_conversations').insert({
+      candidate_id: candidate.id,
+      direction: 'outbound',
+      message_type: 'test_task',
+      content: testTaskMessage,
+      metadata: {
+        deadline: deadline.toISOString(),
+        deadline_days: deadlineDays,
+        sent_directly: true,
+      },
+    } as never);
+
+    console.log(`Test task sent directly to candidate ${candidate.id}, deadline: ${deadline.toISOString()}`);
+  } catch (error) {
+    console.error('Error sending test task directly:', error);
+    await sendTelegramMessage(chatId, 'Виникла помилка при надсиланні тестового завдання. Спробуємо ще раз пізніше.');
   }
 }
 
