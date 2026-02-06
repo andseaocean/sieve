@@ -40,7 +40,9 @@ export default function LandingPage() {
             <div className="flex flex-col items-center gap-4 max-w-md mx-auto px-4 sm:px-0">
               {/* Primary CTA - Telegram */}
               <a
-                href="#telegram"
+                href="https://t.me/vamos_hiring_bot"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="w-full bg-red-600 hover:bg-red-700 text-white px-8 py-4
                            rounded-lg font-semibold flex items-center justify-center gap-3
                            transition-all shadow-lg hover:shadow-xl"
@@ -248,7 +250,9 @@ export default function LandingPage() {
           <div className="flex flex-col items-center gap-4 max-w-md mx-auto px-4 sm:px-0">
             {/* Primary CTA - Telegram */}
             <a
-              href="#telegram"
+              href="https://t.me/vamos_hiring_bot"
+              target="_blank"
+              rel="noopener noreferrer"
               className="w-full bg-white text-red-600 hover:bg-gray-100 px-8 py-4
                          rounded-lg font-semibold flex items-center justify-center gap-3
                          transition-all shadow-lg hover:shadow-xl"
