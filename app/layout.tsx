@@ -26,6 +26,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="uk">
+      <head>
+        {/* Telegram Web App SDK */}
+        <script src="https://telegram.org/js/telegram-web-app.js" />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
