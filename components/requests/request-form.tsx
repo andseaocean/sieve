@@ -34,6 +34,10 @@ const requestSchema = z.object({
   remote_policy: z.enum(['remote', 'hybrid', 'office', 'not_specified']).optional(),
   priority: z.enum(['high', 'medium', 'low']),
   status: z.enum(['active', 'paused', 'closed']).optional(),
+  test_task_url: z.string().optional(),
+  test_task_deadline_days: z.number().min(1).max(14).optional(),
+  test_task_message: z.string().optional(),
+  test_task_evaluation_criteria: z.string().optional(),
 });
 
 type RequestFormData = z.infer<typeof requestSchema>;
@@ -68,6 +72,10 @@ export function RequestForm({ request, isEdit = false }: RequestFormProps) {
       remote_policy: request?.remote_policy || 'not_specified',
       priority: request?.priority || 'medium',
       status: request?.status || 'active',
+      test_task_url: request?.test_task_url || '',
+      test_task_deadline_days: request?.test_task_deadline_days || 3,
+      test_task_message: request?.test_task_message || '',
+      test_task_evaluation_criteria: request?.test_task_evaluation_criteria || '',
     },
   });
 
@@ -78,10 +86,18 @@ export function RequestForm({ request, isEdit = false }: RequestFormProps) {
       const url = isEdit ? `/api/requests/${request?.id}` : '/api/requests';
       const method = isEdit ? 'PATCH' : 'POST';
 
+      const payload = {
+        ...data,
+        test_task_url: data.test_task_url || null,
+        test_task_deadline_days: data.test_task_deadline_days || 3,
+        test_task_message: data.test_task_message || null,
+        test_task_evaluation_criteria: data.test_task_evaluation_criteria || null,
+      };
+
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
@@ -299,6 +315,75 @@ export function RequestForm({ request, isEdit = false }: RequestFormProps) {
               </div>
             )}
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Тестове завдання</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Опціонально: налаштуйте тестове завдання, яке буде надіслано кандидатам після позитивної відповіді.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="test_task_url">Посилання на тестове завдання</Label>
+            <Input
+              id="test_task_url"
+              type="url"
+              placeholder="https://notion.so/test-task або https://github.com/..."
+              {...register('test_task_url')}
+            />
+            <p className="text-xs text-muted-foreground">
+              Посилання на опис завдання (Notion, GitHub, Google Doc тощо). Залиште порожнім, якщо тестового немає.
+            </p>
+          </div>
+
+          {watch('test_task_url') && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="test_task_deadline_days">Дедлайн (днів після відправки)</Label>
+                <Input
+                  id="test_task_deadline_days"
+                  type="number"
+                  min={1}
+                  max={14}
+                  {...register('test_task_deadline_days', { valueAsNumber: true })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Скільки днів кандидат має на виконання завдання (за замовчуванням: 3 дні)
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="test_task_message">Шаблон повідомлення</Label>
+                <Textarea
+                  id="test_task_message"
+                  rows={6}
+                  placeholder={`Вітаю! 👋\n\nВаша заявка успішно пройшла попередній відбір. Наступний етап — тестове завдання.\n\nЗавдання: [посилання буде додано автоматично]\nДедлайн: [буде розраховано автоматично]\n\nЯкщо вам потрібно більше часу, напишіть — обговоримо!\n\nУспіхів! 💪`}
+                  className="font-mono text-sm"
+                  {...register('test_task_message')}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Це повідомлення буде надіслано разом з тестовим завданням. Буде персоналізовано для кожного кандидата.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="test_task_evaluation_criteria">Критерії оцінювання</Label>
+                <Textarea
+                  id="test_task_evaluation_criteria"
+                  rows={8}
+                  placeholder={`На що AI має звертати увагу при оцінці відповідей?\n\nПриклади:\n• Якість коду: чистий, читабельний, відповідає best practices\n• Підхід до вирішення: логічне, ефективне рішення\n• Увага до деталей: edge cases, обробка помилок\n• Комунікація: зрозумілі коментарі, документація\n• Креативність: інноваційні рішення, хороший UX\n\nБудьте конкретними щодо того, що важливо для цієї ролі.`}
+                  className="font-mono text-sm"
+                  {...register('test_task_evaluation_criteria')}
+                />
+                <p className="text-xs text-muted-foreground">
+                  AI використає ці критерії для оцінки відповідей від 1 до 10. Будьте конкретними та чіткими.
+                </p>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 

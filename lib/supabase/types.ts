@@ -60,7 +60,10 @@ export type Database = {
           qualification_questions: Json;
           created_at: string;
           updated_at: string;
-          test_task_notion_url: string | null;
+          test_task_url: string | null;
+          test_task_deadline_days: number;
+          test_task_message: string | null;
+          test_task_evaluation_criteria: string | null;
         };
         Insert: {
           id?: string;
@@ -80,7 +83,10 @@ export type Database = {
           qualification_questions?: Json;
           created_at?: string;
           updated_at?: string;
-          test_task_notion_url?: string | null;
+          test_task_url?: string | null;
+          test_task_deadline_days?: number;
+          test_task_message?: string | null;
+          test_task_evaluation_criteria?: string | null;
         };
         Update: {
           id?: string;
@@ -100,7 +106,10 @@ export type Database = {
           qualification_questions?: Json;
           created_at?: string;
           updated_at?: string;
-          test_task_notion_url?: string | null;
+          test_task_url?: string | null;
+          test_task_deadline_days?: number;
+          test_task_message?: string | null;
+          test_task_evaluation_criteria?: string | null;
         };
       };
       candidates: {

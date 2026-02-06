@@ -68,6 +68,10 @@ export async function PATCH(
     if (body.priority !== undefined) updateData.priority = body.priority;
     if (body.status !== undefined) updateData.status = body.status;
     if (body.qualification_questions !== undefined) updateData.qualification_questions = body.qualification_questions;
+    if (body.test_task_url !== undefined) updateData.test_task_url = body.test_task_url;
+    if (body.test_task_deadline_days !== undefined) updateData.test_task_deadline_days = body.test_task_deadline_days;
+    if (body.test_task_message !== undefined) updateData.test_task_message = body.test_task_message;
+    if (body.test_task_evaluation_criteria !== undefined) updateData.test_task_evaluation_criteria = body.test_task_evaluation_criteria;
 
     const supabase = createServerClient();
     const { data, error } = await supabase

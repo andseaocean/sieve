@@ -55,6 +55,10 @@ export async function POST(request: NextRequest) {
       priority: body.priority || 'medium',
       status: body.status || 'active',
       qualification_questions: body.qualification_questions || [],
+      test_task_url: body.test_task_url || null,
+      test_task_deadline_days: body.test_task_deadline_days || 3,
+      test_task_message: body.test_task_message || null,
+      test_task_evaluation_criteria: body.test_task_evaluation_criteria || null,
     };
 
     const supabase = createServerClient();
