@@ -1,9 +1,25 @@
+'use client';
+
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { CheckCircle2, Home, Sparkles } from 'lucide-react';
+import { CheckCircle2, Home, Sparkles, X } from 'lucide-react';
+import '@/lib/telegram/types';
 
 export default function ThankYouPage() {
+  const [isTelegram, setIsTelegram] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
+      setIsTelegram(true);
+    }
+  }, []);
+
+  const handleCloseMiniApp = () => {
+    window.Telegram?.WebApp.close();
+  };
+
   return (
     <div className="min-h-[calc(100vh-8rem)] bg-gray-50 py-20">
       <div className="container mx-auto px-4">
@@ -75,13 +91,26 @@ export default function ThankYouPage() {
             </CardContent>
           </Card>
 
-          {/* Back to Home Button */}
-          <Link href="/">
-            <Button size="lg" variant="outline">
-              <Home className="h-4 w-4 mr-2" />
-              Повернутися на головну
-            </Button>
-          </Link>
+          {/* Buttons */}
+          <div className="flex flex-col items-center gap-3">
+            {/* Close Mini App — only in Telegram */}
+            {isTelegram && (
+              <Button size="lg" onClick={handleCloseMiniApp}>
+                <X className="h-4 w-4 mr-2" />
+                Закрити та повернутися в Telegram
+              </Button>
+            )}
+
+            {/* Back to Home — only on web */}
+            {!isTelegram && (
+              <Link href="/">
+                <Button size="lg" variant="outline">
+                  <Home className="h-4 w-4 mr-2" />
+                  Повернутися на головну
+                </Button>
+              </Link>
+            )}
+          </div>
         </div>
       </div>
     </div>
