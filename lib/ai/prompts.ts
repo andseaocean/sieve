@@ -1,6 +1,6 @@
 import { Candidate, Request } from '@/lib/supabase/types';
 
-export const CANDIDATE_ANALYSIS_PROMPT = (candidate: Candidate, request: Request) => `
+export const CANDIDATE_ANALYSIS_PROMPT = (candidate: Candidate, request: Request, resumeFormatted?: string) => `
 You are an expert HR analyst for Vamos, an AI-first company.
 
 Analyze this candidate application against the hiring request criteria and provide a detailed assessment.
@@ -20,6 +20,8 @@ Why Vamos: ${candidate.why_vamos || 'Not provided'}
 Skills: ${candidate.key_skills?.join(', ') || 'Not provided'}
 LinkedIn: ${candidate.linkedin_url || 'Not provided'}
 Portfolio: ${candidate.portfolio_url || 'Not provided'}
+
+${resumeFormatted ? `\nRESUME DATA:\n${resumeFormatted}\n` : ''}
 
 EVALUATION CRITERIA:
 1. Overall Score (1-10):
@@ -147,8 +149,8 @@ Focus on opportunities and growth, not just requirements.
 Return ONLY the job posting text, no additional comments or explanations.
 `;
 
-// General candidate analysis without a specific request
-export const GENERAL_CANDIDATE_ANALYSIS_PROMPT = (candidate: Candidate) => `
+// General candidate analysis without a specific request (with optional resume data)
+export const GENERAL_CANDIDATE_ANALYSIS_PROMPT = (candidate: Candidate, resumeFormatted?: string) => `
 You are an expert HR analyst for Vamos, an AI-first company.
 
 Analyze this candidate profile and provide a general assessment of their potential fit for a tech company.
@@ -160,6 +162,8 @@ Why Vamos: ${candidate.why_vamos || 'Not provided'}
 Skills: ${candidate.key_skills?.join(', ') || 'Not provided'}
 LinkedIn: ${candidate.linkedin_url || 'Not provided'}
 Portfolio: ${candidate.portfolio_url || 'Not provided'}
+
+${resumeFormatted ? `\nRESUME DATA:\n${resumeFormatted}\n` : ''}
 
 EVALUATION CRITERIA:
 1. Overall Score (1-10):
@@ -184,7 +188,10 @@ IMPORTANT:
 - Be objective and fair
 - Consider both technical and soft skills
 - Evaluate AI literacy and orientation to modern tools
-- Look for genuine motivation and cultural fit potential
+- Look for genuine motivation and cultural fit potential${resumeFormatted ? `
+- Use resume data (work experience, skills, education) to enrich your assessment
+- Relevant work experience from resume should positively influence the score
+- Technical skills from resume that match common tech company needs are a plus` : ''}
 
 Return your analysis as a JSON object with this structure:
 {

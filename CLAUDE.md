@@ -1,0 +1,294 @@
+# Sieve — AI-Powered Recruitment Platform
+
+## Rules for Claude
+
+- **Keep this file up to date.** After any structural changes to the project (new/removed files, tables, API routes, integrations, environment variables, dependencies, or significant business logic changes), update the relevant sections of this CLAUDE.md before finishing the task.
+- Communicate with the user in the same language they use (default: Ukrainian).
+
+## Project Overview
+
+Sieve (package name: `hiring-system`) is an AI-powered recruitment platform for **Vamos** (AI-first tech company). It automates candidate screening, matching, and outreach. Primary UI language is Ukrainian.
+
+**Candidate flow:** Application/Sourcing -> AI Analysis (1-10 score) -> Matching to requests -> Outreach -> Test Task -> Evaluation -> Interview
+
+## Tech Stack
+
+- **Framework:** Next.js 16 (App Router), React 19, TypeScript
+- **Styling:** Tailwind CSS 4, shadcn/ui (Radix primitives), Lucide icons, next-themes
+- **Database:** Supabase (PostgreSQL), Supabase Storage (resume uploads), RLS enabled
+- **AI:** Anthropic Claude API (`claude-sonnet-4-20250514`) via `/lib/ai/claude.ts`
+- **Auth:** NextAuth.js 4 (credentials provider, JWT strategy)
+- **Email:** Resend API
+- **Bot:** Telegram Bot API (node-telegram-bot-api), Telegram Mini App
+- **Deploy:** Vercel, Vercel Cron (daily at 10:00 UTC)
+- **PDF:** pdf-parse (text extraction from PDF resumes)
+- **Validation:** Zod, React Hook Form
+
+## Directory Structure
+
+```
+app/
+  (auth)/login/                   # Login page
+  (dashboard)/dashboard/          # Protected manager area
+    page.tsx                      # Dashboard home (stats)
+    candidates/                   # Candidate list + detail [id]
+    requests/                     # Hiring requests list + new + detail [id]
+    sourcing/                     # Quick check (bookmarklet) + setup
+  (public)/                       # Public pages
+    page.tsx                      # Landing page
+    apply/                        # Multi-step application form (4 steps)
+    thank-you/                    # Success page
+  submit-test/                    # Test task submission page
+  api/                            # API routes (see below)
+
+components/
+  ui/                             # shadcn/ui primitives
+  candidates/                     # CandidateCard, CandidateFilters, ResumeViewer, etc.
+  dashboard/                      # Header, Sidebar
+  outreach/                       # Outreach management UI
+  public/                         # Landing page components
+  requests/                       # RequestForm, RequestDetail
+  sourcing/                       # ProfilePreview, EvaluationCard, SaveCandidateDialog
+
+lib/
+  ai/                             # AI layer
+    claude.ts                     # analyzeWithClaude() wrapper
+    prompts.ts                    # Analysis/matching prompts
+    outreach-prompts.ts           # Outreach message prompts
+    classifyResponse.ts           # Classify candidate Telegram responses
+    evaluateTestTask.ts           # AI test task evaluation
+  auth/auth.ts                    # NextAuth config
+  supabase/
+    client.ts                     # Supabase client factory (anon + service role)
+    types.ts                      # DB types (~500 lines, auto-generated style)
+  telegram/
+    bot.ts                        # Bot init + polling mode
+    types.ts                      # Telegram types
+  outreach/
+    scheduler.ts                  # Schedule messages
+    processor.ts                  # Process outreach queue
+    email-service.ts              # Resend integration
+    message-generator.ts          # AI message generation
+    schedule-outreach.ts          # Orchestration
+  sourcing/
+    evaluator.ts                  # Cold candidate evaluation
+    message-generator.ts          # Sourcing outreach gen
+    platform-detector.ts          # Detect platform from URL
+    parsers/                      # Profile parsers per platform
+      linkedin-parser.ts
+      github-parser.ts
+      dou-parser.ts
+      djinni-parser.ts
+      workua-parser.ts
+  pdf/
+    types.ts                      # ResumeData, PDFParseError types
+    parser.ts                     # PDF text extraction (pdf-parse)
+    extractor.ts                  # AI-powered structured data extraction
+  translation.ts                  # i18n system
+  language-utils.ts               # Language detection
+  utils.ts                        # General utilities
+
+supabase/migrations/              # SQL migration files (002-009)
+public/bookmarklet/               # Bookmarklet source (vamos-quick-check.js)
+scripts/start-bot.ts              # Telegram bot start script
+middleware.ts                     # Auth middleware (protects /dashboard/*)
+```
+
+## Database Schema (Supabase/PostgreSQL)
+
+### Core Tables
+
+**managers** — User accounts
+- id, email, password_hash, name, role (admin|manager), created_at
+
+**requests** — Hiring requests / job openings
+- title, description, required_skills, nice_to_have_skills, soft_skills
+- ai_orientation, red_flags, location, employment_type, remote_policy
+- priority, status, qualification_questions
+- test_task_url, test_task_deadline_days, test_task_message, test_task_evaluation_criteria
+- job_description (AI-generated)
+
+**candidates** — Applicants (warm + cold)
+- Contact: first_name, last_name, email, phone, telegram_username, preferred_contact_methods
+- Profile: about_text, why_vamos, key_skills, linkedin_url, portfolio_url, resume_url, resume_extracted_data (JSONB)
+- AI analysis: ai_score (1-10), ai_category (top_tier|strong|potential|not_fit), ai_summary, ai_strengths, ai_concerns, ai_recommendation, ai_reasoning
+- Sourcing: sourcing_method, profile_url, platform, current_position, location, experience_years, source (warm|cold)
+- Multilingual: original_language, translated_to, about_text_translated, why_vamos_translated, key_skills_translated
+- Outreach: outreach_status, outreach_sent_at, candidate_response, outreach_message
+- Test task: test_task_status, test_task_sent_at, test_task_original_deadline, test_task_current_deadline, test_task_extensions_count, test_task_submitted_at, test_task_submission_text, test_task_candidate_feedback, test_task_ai_score, test_task_ai_evaluation, test_task_late_by_hours
+
+**candidate_request_matches** — Many-to-many candidates<->requests
+- candidate_id, request_id, match_score (0-100), match_explanation
+- status: new|reviewed|interview|hired|rejected|on_hold
+- manager_notes
+
+**comments** — Manager comments on candidates
+- candidate_id, manager_id, text, created_at
+
+**candidate_conversations** — Communication log
+- candidate_id, direction (inbound|outbound), message_type, content, metadata, sent_at
+
+**outreach_queue** — Scheduled outreach
+- candidate_id, request_id, intro_message, test_task_message
+- delivery_method (email|telegram), scheduled_for, status, error_message, retry_count
+
+**outreach_messages** — Sent message history
+- candidate_id, request_id, message_type (intro|test_task|follow_up)
+- content, delivery_method, sent_at, delivered_at, read_at, response, responded_at
+
+**ai_analysis_queue** — Background AI processing queue
+- candidate_id, status (pending|processing|completed|failed), error_message, retry_count
+
+## API Routes
+
+### Candidates
+- `POST /api/candidates/apply` — Submit application (public)
+- `GET /api/candidates` — List (filters: category, source, score, search, sort)
+- `GET/PUT/DELETE /api/candidates/[id]` — CRUD
+- `POST /api/candidates/[id]/analyze-background` — Queue AI analysis
+- `GET /api/candidates/[id]/resume` — PDF resume proxy/viewer
+- `GET/POST /api/candidates/[id]/comments` — Comments
+
+### Requests
+- `GET/POST /api/requests` — List / Create
+- `GET/PUT/DELETE /api/requests/[id]` — CRUD
+- `GET /api/requests/[id]/matches` — Matched candidates
+- `POST /api/requests/generate-job-description` — AI job description
+
+### AI
+- `POST /api/ai/analyze` — Analyze candidate profile
+- `POST /api/ai/match` — Calculate match score
+
+### Sourcing
+- `POST /api/sourcing/evaluate` — Evaluate cold candidate
+- `POST /api/sourcing/parse-profile` — Parse profile data from URL
+- `POST /api/sourcing/save-cold-candidate` — Save to DB
+
+### Outreach
+- `POST /api/outreach/schedule` — Schedule message
+- `PUT /api/outreach/edit` — Edit scheduled
+- `DELETE /api/outreach/cancel` — Cancel scheduled
+
+### Test Tasks
+- `POST /api/test-task/schedule` — Schedule test task
+- `POST /api/test-task/submit` — Submit solution
+- `POST /api/test-task/extend-deadline` — Request extension
+- `POST /api/test-task/generate-message` — Generate message
+
+### Telegram
+- `POST /api/telegram/webhook` — Webhook handler (classifies responses, handles commands)
+
+### Cron (daily at 10:00 UTC, secured by CRON_SECRET)
+- `GET /api/cron/process-outreach` — Send scheduled outreach (batch of 10)
+- `GET /api/cron/process-ai-analysis` — Process AI analysis queue
+- `GET /api/cron/process-test-tasks` — Test task deadlines & reminders
+
+### Other
+- `GET /api/bookmarklet` — Generate bookmarklet code
+
+## Key Business Logic
+
+### AI Scoring System
+- **1-3:** Not a fit (auto-reject)
+- **4-6:** Potential (reserve)
+- **7-8:** Strong match (invite to interview)
+- **9-10:** Top tier (contact immediately)
+
+### Candidate Sources
+- **Warm:** Applied via web form or Telegram bot
+- **Cold:** Sourced via bookmarklet from LinkedIn, GitHub, DOU, Djinni, Work.ua
+
+### Outreach Flow
+1. Manager selects candidate + request
+2. AI generates personalized intro message
+3. Manager reviews/edits message
+4. Message queued for delivery (email or Telegram)
+5. Cron job sends in batches of 10/day
+6. System tracks delivery, reads, responses
+
+### Test Task Flow
+1. Manager schedules test task for candidate
+2. System sends task via email/Telegram
+3. Candidate submits via `/submit-test` page or Telegram
+4. AI evaluates submission
+5. Manager reviews AI evaluation
+
+### Telegram Bot
+- `/start` — Shows Telegram Mini App for application
+- Incoming messages classified as: positive, negative, question, test_submission, deadline_request
+- Auto-responds to questions using AI
+- Logs all conversations to candidate_conversations table
+
+### Bookmarklet (Sourcing)
+- Installed in browser, activated on candidate profile pages
+- Scrapes profile data from supported platforms
+- Sends data to `/api/sourcing/parse-profile` and `/api/sourcing/evaluate`
+- Shows evaluation + generated outreach message in dashboard
+
+## Authentication
+
+- NextAuth.js with Credentials provider
+- JWT session strategy
+- Managers table in Supabase
+- Middleware protects all `/dashboard/*` routes
+- **Note:** Password comparison is MVP-level (plain comparison, not bcrypt)
+
+## Environment Variables
+
+```
+NEXT_PUBLIC_SUPABASE_URL          # Supabase project URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY     # Supabase anon key
+SUPABASE_SERVICE_ROLE_KEY         # Service role key (cron jobs, bypasses RLS)
+ANTHROPIC_API_KEY                 # Claude API key
+NEXTAUTH_URL                      # App URL (http://localhost:3000)
+NEXTAUTH_SECRET                   # NextAuth secret
+RESEND_API_KEY                    # Resend email API key
+OUTREACH_FROM_EMAIL               # From address for outreach emails
+CRON_SECRET                       # Cron job auth secret
+TELEGRAM_BOT_TOKEN                # Telegram bot token
+NEXT_PUBLIC_APP_URL               # Public app URL (bookmarklet, bot)
+```
+
+## Commands
+
+```bash
+npm run dev      # Start dev server
+npm run build    # Production build
+npm run start    # Start production
+npm run lint     # ESLint
+npm run bot      # Start Telegram bot (polling mode, for local dev)
+```
+
+## Supported Languages
+
+Ukrainian (primary), English, Turkish, Spanish — detection via `lib/language-utils.ts`, translations via `lib/translation.ts`.
+
+## Important Patterns
+
+- **Supabase client:** Use `createClient()` from `lib/supabase/client.ts` for regular requests; use service role client (from `SUPABASE_SERVICE_ROLE_KEY`) in cron jobs to bypass RLS.
+- **AI calls:** All go through `analyzeWithClaude()` in `lib/ai/claude.ts`. Prompts live in `lib/ai/prompts.ts`.
+- **DB types:** `lib/supabase/types.ts` defines all table types — update when schema changes.
+- **Migrations:** SQL files in `supabase/migrations/`, numbered sequentially (002-009).
+- **Components:** shadcn/ui in `components/ui/`, feature components grouped by domain.
+
+## PDF Resume Processing
+
+### Flow
+1. User uploads PDF via application form
+2. File saved to Supabase Storage (`resumes` bucket)
+3. PDF text extracted immediately during apply (fast, no AI)
+4. Raw text + metadata saved to `candidates.resume_extracted_data` (JSONB)
+5. During background AI analysis (`analyze-background`), AI extracts structured data (experience, skills, education) from raw text
+6. Extracted data saved back to `resume_extracted_data`
+7. AI analysis prompt includes resume data for more accurate scoring
+8. Manager views PDF in candidate card via ResumeViewer component (iframe + download)
+
+### Key Files
+- `lib/pdf/types.ts` — `ResumeData` interface, `PDFParseError` class
+- `lib/pdf/parser.ts` — `parsePDFFromURL()`, `parsePDFFromBuffer()`, `cleanText()`
+- `lib/pdf/extractor.ts` — `extractResumeData()` (AI-powered), `formatResumeForAnalysis()`
+- `components/candidates/ResumeViewer.tsx` — PDF viewer/download UI component
+- `app/api/candidates/[id]/resume/route.ts` — Authenticated PDF proxy
+
+### Database
+- `candidates.resume_extracted_data` (JSONB) — Structured resume data with fields: `fullText`, `extracted` (experience, skills, education, contact), `metadata` (pages, size)

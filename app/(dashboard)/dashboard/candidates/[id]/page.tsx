@@ -35,10 +35,11 @@ import {
   Phone,
   Linkedin,
   Globe,
-  FileText,
   Sparkles,
   Loader2,
 } from 'lucide-react';
+import { ResumeViewer } from '@/components/candidates/ResumeViewer';
+import type { ResumeData } from '@/lib/pdf/types';
 
 interface Comment {
   id: string;
@@ -412,22 +413,73 @@ export default function CandidateDetailsPage() {
             </CardContent>
           </Card>
 
-          {/* Resume link */}
-          {candidate.resume_url && (
-            <Card>
-              <CardContent className="pt-6">
-                <a
-                  href={candidate.resume_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-primary hover:underline"
-                >
-                  <FileText className="h-5 w-5" />
-                  Переглянути резюме
-                </a>
-              </CardContent>
-            </Card>
-          )}
+          {/* Resume */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Резюме</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <ResumeViewer
+                candidateId={candidateId}
+                candidateName={`${candidate.first_name} ${candidate.last_name}`}
+                resumeUrl={candidate.resume_url}
+              />
+
+              {/* Extracted resume data */}
+              {(() => {
+                const resumeData = (candidate as Candidate & { resume_extracted_data?: ResumeData | null }).resume_extracted_data;
+                if (!resumeData?.extracted) return null;
+                const { extracted } = resumeData;
+                const hasData = extracted.skills.length > 0 || extracted.experience.length > 0 || extracted.education.length > 0;
+                if (!hasData) return null;
+
+                return (
+                  <div className="border-t pt-4 space-y-4">
+                    <h4 className="text-sm font-semibold text-muted-foreground">Інформація з резюме</h4>
+
+                    {extracted.skills.length > 0 && (
+                      <div>
+                        <h5 className="text-sm font-medium mb-2">Технічні навички</h5>
+                        <div className="flex flex-wrap gap-2">
+                          {extracted.skills.map((skill: string, i: number) => (
+                            <Badge key={i} variant="secondary">{skill}</Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {extracted.experience.length > 0 && (
+                      <div>
+                        <h5 className="text-sm font-medium mb-2">Досвід роботи</h5>
+                        <ul className="space-y-1 text-sm">
+                          {extracted.experience.map((exp: string, i: number) => (
+                            <li key={i} className="flex items-start gap-2">
+                              <span className="text-muted-foreground">•</span>
+                              {exp}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {extracted.education.length > 0 && (
+                      <div>
+                        <h5 className="text-sm font-medium mb-2">Освіта</h5>
+                        <ul className="space-y-1 text-sm">
+                          {extracted.education.map((edu: string, i: number) => (
+                            <li key={i} className="flex items-start gap-2">
+                              <span className="text-muted-foreground">•</span>
+                              {edu}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </CardContent>
+          </Card>
 
           {/* Outreach section - only for warm candidates */}
           {candidate.source === 'warm' && (

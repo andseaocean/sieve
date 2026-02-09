@@ -11,6 +11,9 @@ import { analyzeWithClaude, parseAIAnalysisResult, parseAIMatchResult, MOCK_ANAL
 import { GENERAL_CANDIDATE_ANALYSIS_PROMPT, MATCH_CANDIDATE_TO_REQUEST_PROMPT } from '@/lib/ai/prompts';
 import { translateCandidateContent } from '@/lib/translation';
 import { Candidate, Request } from '@/lib/supabase/types';
+import { parsePDFFromURL } from '@/lib/pdf/parser';
+import { extractResumeData, formatResumeForAnalysis } from '@/lib/pdf/extractor';
+import type { ResumeData } from '@/lib/pdf/types';
 
 const USE_MOCK_AI = process.env.NODE_ENV === 'development' && !process.env.ANTHROPIC_API_KEY;
 
@@ -96,6 +99,52 @@ export async function POST(
       why_vamos: candidate.why_vamos_translated || candidate.why_vamos,
     };
 
+    // Process resume data for AI analysis
+    let resumeFormatted: string | undefined;
+    const existingResumeData = (candidate as Candidate & { resume_extracted_data?: ResumeData | null }).resume_extracted_data;
+
+    if (existingResumeData?.fullText && existingResumeData.extracted.skills.length > 0) {
+      // Already extracted — use it directly
+      resumeFormatted = formatResumeForAnalysis(existingResumeData);
+    } else if ((candidate as Candidate & { resume_url?: string }).resume_url) {
+      // Need to parse and extract from PDF
+      try {
+        console.log('Background AI: Parsing resume PDF for candidate', candidateId);
+
+        let resumeData: ResumeData;
+
+        if (existingResumeData?.fullText) {
+          // We have raw text from apply step — run AI extraction
+          resumeData = await extractResumeData(
+            existingResumeData.fullText,
+            existingResumeData.metadata.pages,
+            existingResumeData.metadata.size || 0
+          );
+        } else {
+          // Parse PDF from URL
+          const { text, pages, size } = await parsePDFFromURL(
+            (candidate as Candidate & { resume_url: string }).resume_url
+          );
+          resumeData = await extractResumeData(text, pages, size);
+        }
+
+        resumeFormatted = formatResumeForAnalysis(resumeData);
+
+        // Save extracted data for future use
+        await supabase
+          .from('candidates')
+          .update({ resume_extracted_data: resumeData } as never)
+          .eq('id', candidateId);
+
+        console.log('Background AI: Resume extracted successfully', {
+          skills: resumeData.extracted.skills.length,
+          experience: resumeData.extracted.experience.length,
+        });
+      } catch (resumeError) {
+        console.error('Background AI: Failed to process resume, continuing without it', resumeError);
+      }
+    }
+
     // Run AI analysis
     let analysis;
     if (USE_MOCK_AI) {
@@ -103,7 +152,7 @@ export async function POST(
       analysis = MOCK_ANALYSIS_RESULT;
     } else {
       console.log('Background AI: Running Claude analysis for candidate', candidateId);
-      const prompt = GENERAL_CANDIDATE_ANALYSIS_PROMPT(candidateForAnalysis as Candidate);
+      const prompt = GENERAL_CANDIDATE_ANALYSIS_PROMPT(candidateForAnalysis as Candidate, resumeFormatted);
       const response = await analyzeWithClaude(prompt);
       analysis = parseAIAnalysisResult(response);
     }

@@ -1,3 +1,5 @@
+import type { ResumeData } from '@/lib/pdf/types';
+
 export type Json =
   | string
   | number
@@ -173,6 +175,7 @@ export type Database = {
           test_task_ai_score: number | null;
           test_task_ai_evaluation: string | null;
           test_task_late_by_hours: number | null;
+          resume_extracted_data: ResumeData | null;
         };
         Insert: {
           id?: string;
@@ -228,6 +231,7 @@ export type Database = {
           test_task_ai_score?: number | null;
           test_task_ai_evaluation?: string | null;
           test_task_late_by_hours?: number | null;
+          resume_extracted_data?: ResumeData | null;
         };
         Update: {
           id?: string;
@@ -283,6 +287,7 @@ export type Database = {
           test_task_ai_score?: number | null;
           test_task_ai_evaluation?: string | null;
           test_task_late_by_hours?: number | null;
+          resume_extracted_data?: ResumeData | null;
         };
       };
       candidate_conversations: {
