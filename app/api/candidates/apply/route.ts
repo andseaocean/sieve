@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/client';
 import { Candidate } from '@/lib/supabase/types';
-import { parsePDFFromBuffer } from '@/lib/pdf/parser';
-import type { ResumeData } from '@/lib/pdf/types';
 
 export async function POST(request: NextRequest) {
   try {
@@ -63,13 +61,19 @@ export async function POST(request: NextRequest) {
 
     // Upload resume if provided
     let resume_url: string | null = null;
-    let resumeExtractedData: ResumeData | null = null;
+    let resumeBuffer: Buffer | null = null;
 
     if (resumeFile && resumeFile.size > 0) {
+      // Read file buffer once — use for both upload and parsing
+      const arrayBuffer = await resumeFile.arrayBuffer();
+      resumeBuffer = Buffer.from(arrayBuffer);
+
       const fileName = `${Date.now()}_${resumeFile.name}`;
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('resumes')
-        .upload(fileName, resumeFile);
+        .upload(fileName, resumeBuffer, {
+          contentType: 'application/pdf',
+        });
 
       if (uploadError) {
         console.error('Error uploading resume:', uploadError);
@@ -79,35 +83,10 @@ export async function POST(request: NextRequest) {
           .from('resumes')
           .getPublicUrl(uploadData.path);
         resume_url = urlData.publicUrl;
-
-        // Parse PDF text (fast, no AI — AI extraction happens in analyze-background)
-        try {
-          const arrayBuffer = await resumeFile.arrayBuffer();
-          const buffer = Buffer.from(arrayBuffer);
-          const { text, pages, size } = await parsePDFFromBuffer(buffer);
-
-          resumeExtractedData = {
-            fullText: text.slice(0, 50000), // Limit stored text
-            extracted: {
-              experience: [],
-              skills: [],
-              education: [],
-            },
-            metadata: { pages, size },
-          };
-
-          console.log('Resume PDF parsed successfully:', {
-            pages,
-            textLength: text.length,
-          });
-        } catch (pdfError) {
-          console.error('Failed to parse resume PDF:', pdfError);
-          // Don't block candidate creation
-        }
       }
     }
 
-    // Create candidate record with language tracking
+    // Create candidate record (always — even if PDF parsing fails later)
     const { data: candidateData, error: insertError } = await supabase
       .from('candidates')
       .insert({
@@ -121,10 +100,8 @@ export async function POST(request: NextRequest) {
         linkedin_url: linkedin_url || null,
         portfolio_url: portfolio_url || null,
         resume_url,
-        resume_extracted_data: resumeExtractedData,
-        source: 'warm', // Public form is "warm" source (candidate applied themselves)
-        original_language, // Track the original submission language
-        // Outreach fields
+        source: 'warm',
+        original_language,
         preferred_contact_methods,
         telegram_username: telegram_username || null,
         outreach_status: 'pending',
@@ -142,6 +119,30 @@ export async function POST(request: NextRequest) {
 
     const candidate = candidateData as Candidate;
 
+    // Parse PDF text AFTER candidate is created (non-blocking)
+    if (resume_url && resumeBuffer) {
+      try {
+        const { parsePDFFromBuffer } = await import('@/lib/pdf/parser');
+        const { text, pages, size } = await parsePDFFromBuffer(resumeBuffer);
+
+        await supabase
+          .from('candidates')
+          .update({
+            resume_extracted_data: {
+              fullText: text.slice(0, 50000),
+              extracted: { experience: [], skills: [], education: [] },
+              metadata: { pages, size },
+            },
+          } as never)
+          .eq('id', candidate.id);
+
+        console.log('Resume PDF parsed successfully:', { pages, textLength: text.length });
+      } catch (pdfError) {
+        console.error('Failed to parse resume PDF (non-blocking):', pdfError);
+        // Candidate already created — PDF parsing will happen in analyze-background
+      }
+    }
+
     // Add candidate to AI analysis queue (processed by cron job)
     const { error: queueError } = await supabase
       .from('ai_analysis_queue')
@@ -151,7 +152,6 @@ export async function POST(request: NextRequest) {
       } as never);
 
     if (queueError) {
-      // Log but don't fail - candidate was created successfully
       console.error('Error adding to AI analysis queue:', queueError);
     } else {
       console.log(`Candidate ${candidate.id} added to AI analysis queue`);
