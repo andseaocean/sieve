@@ -64,26 +64,26 @@ export async function POST(request: NextRequest) {
     let resumeBuffer: Buffer | null = null;
 
     if (resumeFile && resumeFile.size > 0) {
-      // Read file as ArrayBuffer for later PDF parsing
+      // Read file once into buffer — reuse for upload and PDF parsing
       const arrayBuffer = await resumeFile.arrayBuffer();
       resumeBuffer = Buffer.from(arrayBuffer);
 
       const fileName = `${Date.now()}_${resumeFile.name}`;
-      // Upload using ArrayBuffer (compatible with Supabase on Vercel)
+      // Upload using Uint8Array (File stream is consumed after arrayBuffer())
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('resumes')
-        .upload(fileName, arrayBuffer, {
+        .upload(fileName, new Uint8Array(arrayBuffer), {
           contentType: 'application/pdf',
         });
 
       if (uploadError) {
         console.error('Error uploading resume:', uploadError);
-        // Continue without resume if upload fails
       } else if (uploadData) {
         const { data: urlData } = supabase.storage
           .from('resumes')
           .getPublicUrl(uploadData.path);
         resume_url = urlData.publicUrl;
+        console.log('Resume uploaded successfully:', resume_url);
       }
     }
 
