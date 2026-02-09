@@ -64,14 +64,15 @@ export async function POST(request: NextRequest) {
     let resumeBuffer: Buffer | null = null;
 
     if (resumeFile && resumeFile.size > 0) {
-      // Read file buffer once — use for both upload and parsing
+      // Read file as ArrayBuffer for later PDF parsing
       const arrayBuffer = await resumeFile.arrayBuffer();
       resumeBuffer = Buffer.from(arrayBuffer);
 
       const fileName = `${Date.now()}_${resumeFile.name}`;
+      // Upload using ArrayBuffer (compatible with Supabase on Vercel)
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('resumes')
-        .upload(fileName, resumeBuffer, {
+        .upload(fileName, arrayBuffer, {
           contentType: 'application/pdf',
         });
 
