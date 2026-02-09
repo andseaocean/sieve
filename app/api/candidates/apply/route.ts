@@ -62,28 +62,58 @@ export async function POST(request: NextRequest) {
     // Upload resume if provided
     let resume_url: string | null = null;
     let resumeBuffer: Buffer | null = null;
+    let resumeUploadWarning: string | null = null;
 
     if (resumeFile && resumeFile.size > 0) {
       // Read file once into buffer — reuse for upload and PDF parsing
       const arrayBuffer = await resumeFile.arrayBuffer();
       resumeBuffer = Buffer.from(arrayBuffer);
 
-      const fileName = `${Date.now()}_${resumeFile.name}`;
-      // Upload using Uint8Array (File stream is consumed after arrayBuffer())
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('resumes')
-        .upload(fileName, new Uint8Array(arrayBuffer), {
-          contentType: 'application/pdf',
-        });
+      console.log('Resume file received:', {
+        name: resumeFile.name,
+        size: resumeFile.size,
+        type: resumeFile.type,
+        bufferLength: resumeBuffer.length,
+      });
 
-      if (uploadError) {
-        console.error('Error uploading resume:', uploadError);
-      } else if (uploadData) {
-        const { data: urlData } = supabase.storage
+      // Ensure bucket exists
+      const { data: buckets } = await supabase.storage.listBuckets();
+      const bucketExists = buckets?.some((b) => b.name === 'resumes');
+
+      if (!bucketExists) {
+        console.log('Bucket "resumes" not found, creating...');
+        const { error: createBucketError } = await supabase.storage.createBucket('resumes', {
+          public: true,
+          fileSizeLimit: 10 * 1024 * 1024, // 10MB
+          allowedMimeTypes: ['application/pdf'],
+        });
+        if (createBucketError) {
+          console.error('Failed to create bucket:', createBucketError);
+          resumeUploadWarning = `Bucket creation failed: ${createBucketError.message}`;
+        } else {
+          console.log('Bucket "resumes" created successfully');
+        }
+      }
+
+      if (!resumeUploadWarning) {
+        const fileName = `${Date.now()}_${resumeFile.name}`;
+        const { data: uploadData, error: uploadError } = await supabase.storage
           .from('resumes')
-          .getPublicUrl(uploadData.path);
-        resume_url = urlData.publicUrl;
-        console.log('Resume uploaded successfully:', resume_url);
+          .upload(fileName, resumeBuffer, {
+            contentType: resumeFile.type || 'application/pdf',
+            upsert: false,
+          });
+
+        if (uploadError) {
+          console.error('Error uploading resume:', JSON.stringify(uploadError));
+          resumeUploadWarning = `Upload failed: ${uploadError.message}`;
+        } else if (uploadData) {
+          const { data: urlData } = supabase.storage
+            .from('resumes')
+            .getPublicUrl(uploadData.path);
+          resume_url = urlData.publicUrl;
+          console.log('Resume uploaded successfully:', resume_url);
+        }
       }
     }
 
@@ -162,6 +192,8 @@ export async function POST(request: NextRequest) {
       success: true,
       message: 'Заявку успішно надіслано',
       candidate_id: candidate.id,
+      resume_uploaded: !!resume_url,
+      ...(resumeUploadWarning && { resume_warning: resumeUploadWarning }),
     });
   } catch (error) {
     console.error('Error in POST /api/candidates/apply:', error);
