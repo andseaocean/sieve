@@ -59,6 +59,7 @@ export async function POST(request: NextRequest) {
       test_task_deadline_days: body.test_task_deadline_days || 3,
       test_task_message: body.test_task_message || null,
       test_task_evaluation_criteria: body.test_task_evaluation_criteria || null,
+      job_description: body.job_description || null,
     };
 
     const supabase = createServerClient();

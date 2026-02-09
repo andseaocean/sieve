@@ -67,6 +67,7 @@ export type Database = {
           test_task_deadline_days: number;
           test_task_message: string | null;
           test_task_evaluation_criteria: string | null;
+          job_description: string | null;
         };
         Insert: {
           id?: string;
@@ -90,6 +91,7 @@ export type Database = {
           test_task_deadline_days?: number;
           test_task_message?: string | null;
           test_task_evaluation_criteria?: string | null;
+          job_description?: string | null;
         };
         Update: {
           id?: string;
@@ -113,6 +115,7 @@ export type Database = {
           test_task_deadline_days?: number;
           test_task_message?: string | null;
           test_task_evaluation_criteria?: string | null;
+          job_description?: string | null;
         };
       };
       candidates: {

@@ -101,6 +101,52 @@ Return JSON with this structure:
 }
 `;
 
+// Job description generation
+export const GENERATE_JOB_DESCRIPTION_PROMPT = (data: {
+  title: string;
+  required_skills: string;
+  nice_to_have_skills?: string;
+  soft_skills?: string;
+  description?: string;
+  location?: string;
+  employment_type?: string;
+  remote_policy?: string;
+  ai_orientation?: string;
+  red_flags?: string;
+}) => `
+You are a professional recruiter at Vamos, an AI-first company.
+Generate a compelling job posting in Ukrainian based on the following criteria.
+
+Job Title: ${data.title}
+Required Skills: ${data.required_skills}
+Nice-to-have Skills: ${data.nice_to_have_skills || 'None specified'}
+Soft Skills: ${data.soft_skills || 'None specified'}
+Role Description: ${data.description || 'None specified'}
+Location: ${data.location || 'Not specified'}
+Employment Type: ${data.employment_type || 'Not specified'}
+Remote Policy: ${data.remote_policy || 'Not specified'}
+AI Orientation: ${data.ai_orientation || 'Not specified'}
+Red Flags to avoid: ${data.red_flags || 'None specified'}
+
+Generate a professional job posting with the following structure:
+1. **Eye-catching title** with role name
+2. **About Vamos** (2-3 sentences) - emphasize AI-first approach
+3. **What you'll do** (3-5 bullet points based on responsibilities/description)
+4. **What we're looking for** (required skills formatted as bullets)
+5. **Nice to have** (if provided)
+6. **What we offer** (standard Vamos benefits - flexible schedule, remote-first, growth opportunities, modern tech stack)
+7. **How to apply** - brief call to action
+
+Tone: Professional but friendly, modern, tech-focused.
+Length: 300-500 words.
+Format: Use markdown for headers (**bold**) and bullets (•).
+Language: Ukrainian.
+
+Do not mention red flags or negative criteria in the posting.
+Focus on opportunities and growth, not just requirements.
+Return ONLY the job posting text, no additional comments or explanations.
+`;
+
 // General candidate analysis without a specific request
 export const GENERAL_CANDIDATE_ANALYSIS_PROMPT = (candidate: Candidate) => `
 You are an expert HR analyst for Vamos, an AI-first company.

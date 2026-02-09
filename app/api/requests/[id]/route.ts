@@ -72,6 +72,7 @@ export async function PATCH(
     if (body.test_task_deadline_days !== undefined) updateData.test_task_deadline_days = body.test_task_deadline_days;
     if (body.test_task_message !== undefined) updateData.test_task_message = body.test_task_message;
     if (body.test_task_evaluation_criteria !== undefined) updateData.test_task_evaluation_criteria = body.test_task_evaluation_criteria;
+    if (body.job_description !== undefined) updateData.job_description = body.job_description;
 
     const supabase = createServerClient();
     const { data, error } = await supabase

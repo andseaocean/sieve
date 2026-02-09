@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Request } from '@/lib/supabase/types';
+import { JobDescriptionGenerator } from '@/components/requests/job-description-generator';
 import { Loader2 } from 'lucide-react';
 
 const requestSchema = z.object({
@@ -38,6 +39,7 @@ const requestSchema = z.object({
   test_task_deadline_days: z.number().min(1).max(14).optional(),
   test_task_message: z.string().optional(),
   test_task_evaluation_criteria: z.string().optional(),
+  job_description: z.string().optional(),
 });
 
 type RequestFormData = z.infer<typeof requestSchema>;
@@ -76,6 +78,7 @@ export function RequestForm({ request, isEdit = false }: RequestFormProps) {
       test_task_deadline_days: request?.test_task_deadline_days || 3,
       test_task_message: request?.test_task_message || '',
       test_task_evaluation_criteria: request?.test_task_evaluation_criteria || '',
+      job_description: request?.job_description || '',
     },
   });
 
@@ -92,6 +95,7 @@ export function RequestForm({ request, isEdit = false }: RequestFormProps) {
         test_task_deadline_days: data.test_task_deadline_days || 3,
         test_task_message: data.test_task_message || null,
         test_task_evaluation_criteria: data.test_task_evaluation_criteria || null,
+        job_description: data.job_description || null,
       };
 
       const response = await fetch(url, {
@@ -382,6 +386,23 @@ export function RequestForm({ request, isEdit = false }: RequestFormProps) {
           </div>
         </CardContent>
       </Card>
+
+      <JobDescriptionGenerator
+        formData={{
+          title: watch('title'),
+          required_skills: watch('required_skills'),
+          nice_to_have_skills: watch('nice_to_have_skills'),
+          soft_skills: watch('soft_skills'),
+          description: watch('description'),
+          location: watch('location'),
+          employment_type: watch('employment_type'),
+          remote_policy: watch('remote_policy'),
+          ai_orientation: watch('ai_orientation'),
+          red_flags: watch('red_flags'),
+        }}
+        value={watch('job_description') || ''}
+        onChange={(description) => setValue('job_description', description)}
+      />
 
       <div className="flex justify-end gap-4">
         <Button
