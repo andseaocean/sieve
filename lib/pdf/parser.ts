@@ -1,5 +1,13 @@
-import { PDFParse } from 'pdf-parse';
 import { PDFParseError } from './types';
+
+/**
+ * Динамічно завантажує PDFParse (pdf-parse v2 використовує canvas/workers,
+ * які можуть не працювати при статичному імпорті на Vercel)
+ */
+async function getPDFParse() {
+  const { PDFParse } = await import('pdf-parse');
+  return PDFParse;
+}
 
 /**
  * Завантажує та парсить PDF за URL
@@ -17,6 +25,7 @@ export async function parsePDFFromURL(
     const arrayBuffer = await response.arrayBuffer();
     const data = new Uint8Array(arrayBuffer);
 
+    const PDFParse = await getPDFParse();
     const parser = new PDFParse({ data, verbosity: 0 });
     const result = await parser.getText();
 
@@ -46,6 +55,7 @@ export async function parsePDFFromBuffer(
 ): Promise<{ text: string; pages: number; size: number }> {
   try {
     const data = new Uint8Array(buffer);
+    const PDFParse = await getPDFParse();
     const parser = new PDFParse({ data, verbosity: 0 });
     const result = await parser.getText();
 
