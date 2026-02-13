@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth';
-import { createServerClient } from '@/lib/supabase/client';
-import { analyzeWithClaude, parseAIAnalysisResult, MOCK_ANALYSIS_RESULT } from '@/lib/ai/claude';
+import { createServiceRoleClient } from '@/lib/supabase/client';
+import { analyzeWithClaude, analyzeWithClaudeAndPDF, parseAIAnalysisResult, MOCK_ANALYSIS_RESULT } from '@/lib/ai/claude';
 import { GENERAL_CANDIDATE_ANALYSIS_PROMPT } from '@/lib/ai/prompts';
 import { Candidate } from '@/lib/supabase/types';
+import { downloadResumePDFAsBase64 } from '@/lib/pdf/downloader';
 
 const USE_MOCK_AI = process.env.NODE_ENV === 'development' && !process.env.ANTHROPIC_API_KEY;
 
@@ -22,7 +23,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'candidate_id is required' }, { status: 400 });
     }
 
-    const supabase = createServerClient();
+    const supabase = createServiceRoleClient();
 
     // Fetch candidate
     const { data: candidateData, error: candidateError } = await supabase
@@ -37,16 +38,30 @@ export async function POST(request: NextRequest) {
 
     const candidate = candidateData as Candidate;
 
+    // Download PDF resume if available
+    let pdfBase64: string | null = null;
+    const candidateResumeUrl = (candidate as Candidate & { resume_url?: string }).resume_url;
+
+    if (candidateResumeUrl) {
+      try {
+        pdfBase64 = await downloadResumePDFAsBase64(supabase, candidateResumeUrl);
+        console.log('Resume PDF downloaded for analysis, size:', Math.round(pdfBase64.length / 1024), 'KB');
+      } catch (pdfError) {
+        console.error('Failed to download resume PDF, continuing without it:', pdfError);
+      }
+    }
+
     let analysis;
 
     if (USE_MOCK_AI) {
-      // Use mock data for development
       console.log('Using mock AI analysis');
       analysis = MOCK_ANALYSIS_RESULT;
     } else {
-      // Call Claude API
-      const prompt = GENERAL_CANDIDATE_ANALYSIS_PROMPT(candidate);
-      const response = await analyzeWithClaude(prompt);
+      const hasPDF = !!pdfBase64;
+      const prompt = GENERAL_CANDIDATE_ANALYSIS_PROMPT(candidate, undefined, hasPDF);
+      const response = pdfBase64
+        ? await analyzeWithClaudeAndPDF(prompt, pdfBase64)
+        : await analyzeWithClaude(prompt);
       analysis = parseAIAnalysisResult(response);
     }
 
