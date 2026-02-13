@@ -1,8 +1,10 @@
 'use client';
 
-import { Clock, CheckCircle, AlertTriangle, FileText, Send, Star } from 'lucide-react';
+import { useState } from 'react';
+import { Clock, CheckCircle, AlertTriangle, FileText, Send, Star, ChevronDown, ChevronUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 
 interface TestTaskTimelineProps {
   candidate: {
@@ -58,6 +60,36 @@ function timeAgo(dateStr: string): string {
   if (days > 0) return `${days} дн. тому`;
   if (hours > 0) return `${hours} год. тому`;
   return 'щойно';
+}
+
+const PREVIEW_LENGTH = 500;
+
+function SubmissionPreview({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const isLong = text.length > PREVIEW_LENGTH;
+
+  return (
+    <div className="pt-3 border-t">
+      <h4 className="text-sm font-semibold mb-2">Відповідь кандидата</h4>
+      <div className={`bg-gray-50 rounded p-3 text-sm whitespace-pre-wrap ${!expanded ? 'max-h-40 overflow-hidden' : ''}`}>
+        {expanded || !isLong ? text : text.substring(0, PREVIEW_LENGTH) + '...'}
+      </div>
+      {isLong && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="mt-1 text-xs h-7"
+          onClick={() => setExpanded(!expanded)}
+        >
+          {expanded ? (
+            <>Згорнути <ChevronUp className="w-3 h-3 ml-1" /></>
+          ) : (
+            <>Показати повністю <ChevronDown className="w-3 h-3 ml-1" /></>
+          )}
+        </Button>
+      )}
+    </div>
+  );
 }
 
 export function TestTaskTimeline({ candidate }: TestTaskTimelineProps) {
@@ -153,14 +185,7 @@ export function TestTaskTimeline({ candidate }: TestTaskTimelineProps) {
 
         {/* Submission preview */}
         {candidate.test_task_submission_text && (
-          <div className="pt-3 border-t">
-            <h4 className="text-sm font-semibold mb-2">Відповідь кандидата</h4>
-            <div className="bg-gray-50 rounded p-3 text-sm whitespace-pre-wrap max-h-40 overflow-y-auto">
-              {candidate.test_task_submission_text.length > 500
-                ? candidate.test_task_submission_text.substring(0, 500) + '...'
-                : candidate.test_task_submission_text}
-            </div>
-          </div>
+          <SubmissionPreview text={candidate.test_task_submission_text} />
         )}
 
         {/* AI Evaluation */}
