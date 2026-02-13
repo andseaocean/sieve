@@ -13,14 +13,11 @@ export default function PublicLayout({
   const [isTelegram, setIsTelegram] = useState(false);
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
+    const tg = window.Telegram?.WebApp;
+    if (tg && tg.initData) {
       setIsTelegram(true);
-
-      const tg = window.Telegram.WebApp;
       tg.ready();
       tg.expand();
-
-      console.log('Running in Telegram Mini App');
     }
   }, []);
 

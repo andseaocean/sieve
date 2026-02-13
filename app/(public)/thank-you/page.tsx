@@ -11,7 +11,8 @@ export default function ThankYouPage() {
   const [isTelegram, setIsTelegram] = useState(false);
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
+    const tg = window.Telegram?.WebApp;
+    if (tg && tg.initData) {
       setIsTelegram(true);
     }
   }, []);

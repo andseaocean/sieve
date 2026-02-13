@@ -67,9 +67,9 @@ export default function ApplyPage() {
   const [isTelegram, setIsTelegram] = useState(false);
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
+    const tg = window.Telegram?.WebApp;
+    if (tg && tg.initData) {
       setIsTelegram(true);
-      console.log('Apply form running in Telegram Mini App');
     }
   }, []);
 
