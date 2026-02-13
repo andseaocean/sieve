@@ -70,13 +70,13 @@ export function ResumeViewer({
               Переглянути
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-4xl h-[80vh]">
-            <DialogHeader>
+          <DialogContent className="max-w-5xl h-[90vh] flex flex-col gap-0 p-0">
+            <DialogHeader className="px-6 py-3 border-b shrink-0">
               <DialogTitle>Резюме: {candidateName}</DialogTitle>
             </DialogHeader>
             <iframe
               src={pdfProxyUrl}
-              className="w-full h-full border-0"
+              className="w-full flex-1 border-0"
               title="Resume PDF"
             />
           </DialogContent>
