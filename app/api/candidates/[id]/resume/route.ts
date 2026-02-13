@@ -45,32 +45,53 @@ export async function GET(
       );
     }
 
-    // Try to extract storage path from Supabase URL and download via SDK (bypasses public access issues)
+    // Extract storage file path from the Supabase public URL
     let pdfBuffer: ArrayBuffer;
-    const storagePrefix = '/storage/v1/object/public/resumes/';
-    const storagePath = candidate.resume_url.includes(storagePrefix)
-      ? candidate.resume_url.split(storagePrefix)[1]
-      : null;
+    const resumeUrl = candidate.resume_url;
+
+    // Try multiple URL patterns to extract the storage path
+    let storagePath: string | null = null;
+    const patterns = [
+      '/storage/v1/object/public/resumes/',
+      '/storage/v1/object/sign/resumes/',
+      '/storage/v1/object/resumes/',
+    ];
+    for (const prefix of patterns) {
+      if (resumeUrl.includes(prefix)) {
+        storagePath = resumeUrl.split(prefix)[1]?.split('?')[0] || null;
+        break;
+      }
+    }
 
     if (storagePath) {
+      // Download via Supabase SDK (works regardless of bucket visibility)
+      const decodedPath = decodeURIComponent(storagePath);
       const { data: fileData, error: downloadError } = await supabase.storage
         .from('resumes')
-        .download(decodeURIComponent(storagePath));
+        .download(decodedPath);
 
       if (downloadError || !fileData) {
-        console.error('Storage download error:', downloadError);
         return NextResponse.json(
-          { error: `Failed to download resume: ${downloadError?.message || 'unknown'}` },
+          {
+            error: 'Failed to download resume from storage',
+            details: downloadError?.message,
+            storagePath: decodedPath,
+            resumeUrl,
+          },
           { status: 500 }
         );
       }
       pdfBuffer = await fileData.arrayBuffer();
     } else {
-      // Fallback: direct fetch for non-Supabase URLs
-      const response = await fetch(candidate.resume_url);
+      // Fallback: direct fetch (for non-Supabase or old-format URLs)
+      const response = await fetch(resumeUrl);
       if (!response.ok) {
         return NextResponse.json(
-          { error: 'Failed to fetch resume' },
+          {
+            error: 'Failed to fetch resume via URL',
+            status: response.status,
+            resumeUrl,
+          },
           { status: 500 }
         );
       }
