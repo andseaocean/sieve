@@ -108,7 +108,11 @@ export async function GET(
   } catch (error) {
     console.error('Error serving resume:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      {
+        error: 'Internal server error',
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack?.split('\n').slice(0, 3) : undefined,
+      },
       { status: 500 }
     );
   }
