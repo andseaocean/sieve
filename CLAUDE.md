@@ -21,7 +21,7 @@ Sieve (package name: `hiring-system`) is an AI-powered recruitment platform for 
 - **Email:** Resend API
 - **Bot:** Telegram Bot API (node-telegram-bot-api), Telegram Mini App
 - **Deploy:** Vercel, Vercel Cron (daily at 10:00 UTC)
-- **PDF:** pdf-parse (text extraction from PDF resumes)
+- **PDF:** Native Claude API PDF support (document blocks), Supabase Storage for file hosting
 - **Validation:** Zod, React Hook Form
 
 ## Directory Structure
@@ -82,8 +82,9 @@ lib/
       workua-parser.ts
   pdf/
     types.ts                      # ResumeData, PDFParseError types
-    parser.ts                     # PDF text extraction (pdf-parse)
-    extractor.ts                  # AI-powered structured data extraction
+    parser.ts                     # PDF text extraction (pdf-parse, legacy)
+    extractor.ts                  # AI-powered structured data extraction (legacy)
+    downloader.ts                 # Download PDF from Supabase Storage as base64
   translation.ts                  # i18n system
   language-utils.ts               # Language detection
   utils.ts                        # General utilities
@@ -266,7 +267,7 @@ Ukrainian (primary), English, Turkish, Spanish — detection via `lib/language-u
 ## Important Patterns
 
 - **Supabase client:** Use `createClient()` from `lib/supabase/client.ts` for regular requests; use service role client (from `SUPABASE_SERVICE_ROLE_KEY`) in cron jobs to bypass RLS.
-- **AI calls:** All go through `analyzeWithClaude()` in `lib/ai/claude.ts`. Prompts live in `lib/ai/prompts.ts`.
+- **AI calls:** Text-only via `analyzeWithClaude()`, with PDF via `analyzeWithClaudeAndPDF()` in `lib/ai/claude.ts`. Prompts live in `lib/ai/prompts.ts`.
 - **DB types:** `lib/supabase/types.ts` defines all table types — update when schema changes.
 - **Migrations:** SQL files in `supabase/migrations/`, numbered sequentially (002-009).
 - **Components:** shadcn/ui in `components/ui/`, feature components grouped by domain.
@@ -274,21 +275,32 @@ Ukrainian (primary), English, Turkish, Spanish — detection via `lib/language-u
 ## PDF Resume Processing
 
 ### Flow
-1. User uploads PDF via application form
-2. File saved to Supabase Storage (`resumes` bucket)
-3. PDF text extracted immediately during apply (fast, no AI)
-4. Raw text + metadata saved to `candidates.resume_extracted_data` (JSONB)
-5. During background AI analysis (`analyze-background`), AI extracts structured data (experience, skills, education) from raw text
-6. Extracted data saved back to `resume_extracted_data`
-7. AI analysis prompt includes resume data for more accurate scoring
-8. Manager views PDF in candidate card via ResumeViewer component (iframe + download)
+1. User uploads PDF via application form (filename sanitized — Cyrillic/spaces replaced with `_`)
+2. File saved to Supabase Storage (`resumes` bucket, auto-created if missing)
+3. `resume_url` saved to candidate record
+4. During AI analysis, PDF is downloaded from Supabase Storage as base64
+5. PDF sent **directly to Claude API** as a `document` content block (no text extraction needed)
+6. Claude natively reads the PDF and uses all information (experience, skills, education) in analysis
+7. Manager views PDF in candidate card via ResumeViewer component (iframe modal + download)
 
 ### Key Files
+- `lib/pdf/downloader.ts` — `downloadResumePDFAsBase64()` — downloads PDF from Supabase Storage
+- `lib/ai/claude.ts` — `analyzeWithClaudeAndPDF()` — sends prompt + PDF document to Claude API
+- `components/candidates/ResumeViewer.tsx` — PDF viewer/download UI component (Dialog modal)
+- `app/api/candidates/[id]/resume/route.ts` — Authenticated PDF proxy (service role, SDK download)
+- `app/api/candidates/apply/route.ts` — Upload with filename sanitization + bucket auto-creation
+
+### Legacy Files (not used for AI analysis)
+- `lib/pdf/parser.ts` — PDF text extraction via pdf-parse (doesn't work on Vercel)
+- `lib/pdf/extractor.ts` — AI-powered structured data extraction from text
 - `lib/pdf/types.ts` — `ResumeData` interface, `PDFParseError` class
-- `lib/pdf/parser.ts` — `parsePDFFromURL()`, `parsePDFFromBuffer()`, `cleanText()`
-- `lib/pdf/extractor.ts` — `extractResumeData()` (AI-powered), `formatResumeForAnalysis()`
-- `components/candidates/ResumeViewer.tsx` — PDF viewer/download UI component
-- `app/api/candidates/[id]/resume/route.ts` — Authenticated PDF proxy
+
+### AI Analysis with PDF
+All three analysis endpoints send PDF directly to Claude:
+- `POST /api/ai/analyze` — Manual analysis (button click)
+- `POST /api/candidates/[id]/analyze-background` — Background analysis after creation
+- `GET /api/cron/process-ai-analysis` — Cron job batch processing
 
 ### Database
-- `candidates.resume_extracted_data` (JSONB) — Structured resume data with fields: `fullText`, `extracted` (experience, skills, education, contact), `metadata` (pages, size)
+- `candidates.resume_url` — Public URL of the PDF in Supabase Storage
+- `candidates.resume_extracted_data` (JSONB) — Legacy field for text-based extraction (may be empty)
