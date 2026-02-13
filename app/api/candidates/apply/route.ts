@@ -96,7 +96,11 @@ export async function POST(request: NextRequest) {
       }
 
       if (!resumeUploadWarning) {
-        const fileName = `${Date.now()}_${resumeFile.name}`;
+        // Sanitize filename: only allow latin chars, digits, dots, hyphens, underscores
+        const safeName = resumeFile.name
+          .replace(/[^a-zA-Z0-9.\-_]/g, '_')
+          .replace(/_+/g, '_');
+        const fileName = `${Date.now()}_${safeName || 'resume.pdf'}`;
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('resumes')
           .upload(fileName, resumeBuffer, {
