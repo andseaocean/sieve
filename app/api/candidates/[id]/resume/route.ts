@@ -101,7 +101,7 @@ export async function GET(
     return new NextResponse(pdfBuffer, {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `inline; filename="${candidate.first_name}_${candidate.last_name}_Resume.pdf"`,
+        'Content-Disposition': `inline; filename="resume.pdf"; filename*=UTF-8''${encodeURIComponent(`${candidate.first_name}_${candidate.last_name}_Resume.pdf`)}`,
         'Cache-Control': 'private, max-age=3600',
       },
     });
