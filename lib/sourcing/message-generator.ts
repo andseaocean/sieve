@@ -40,7 +40,7 @@ Match Score: ${params.bestMatch.match_score}/100
 
 TONE: ${params.tone || 'friendly'}
 
-Write a personalized ${params.profile.platform === 'linkedin' ? 'LinkedIn' : 'email'} message:
+Write a personalized ${params.profile.platform === 'linkedin' ? 'LinkedIn' : 'email'} message IN UKRAINIAN (УКРАЇНСЬКОЮ мовою):
 
 REQUIREMENTS:
 - Start with a personalized greeting using their first name
@@ -51,12 +51,14 @@ REQUIREMENTS:
 - ${params.tone === 'formal' ? 'Professional and formal tone' : params.tone === 'casual' ? 'Casual and conversational tone' : 'Professional but warm and friendly tone'}
 - End with a soft call-to-action (asking if they'd be open to a chat)
 - Sign off with the manager's name or "Vamos Team"
+- The ENTIRE message must be in Ukrainian
 
 DO NOT:
 - Be too salesy or pushy
 - Use generic phrases like "I came across your profile"
 - Make it too long
 - Promise anything specific
+- Write in any language other than Ukrainian
 
 Generate ONLY the message text, no explanations or meta-commentary.
 `;

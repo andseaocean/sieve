@@ -46,16 +46,17 @@ IMPORTANT:
 - Pay attention to red flags
 - Evaluate AI orientation based on the request priority
 - Look for genuine motivation in "Why Vamos"
+- ALL text values in the response MUST be in Ukrainian (УКРАЇНСЬКОЮ мовою)
 
 Return your analysis as a JSON object with this structure:
 {
   "score": number (1-10),
   "category": "top_tier" | "strong" | "potential" | "not_fit",
-  "summary": "string (2-3 sentences)",
-  "strengths": ["string", "string", ...],
-  "concerns": ["string", "string", ...],
+  "summary": "string (2-3 sentences, in Ukrainian)",
+  "strengths": ["string in Ukrainian", ...],
+  "concerns": ["string in Ukrainian", ...],
   "recommendation": "yes" | "no",
-  "reasoning": "string (why this recommendation)"
+  "reasoning": "string (in Ukrainian)"
 }
 `;
 
@@ -94,11 +95,13 @@ Calculate a match score (0-100) based on:
 - AI orientation alignment (10%)
 - Overall quality of candidate (10%)
 
+ALL text values in the response MUST be in Ukrainian (УКРАЇНСЬКОЮ мовою).
+
 Return JSON with this structure:
 {
   "match_score": number (0-100),
-  "alignment": "string (how they match requirements)",
-  "missing": "string (what's not aligned)",
+  "alignment": "string in Ukrainian (how they match requirements)",
+  "missing": "string in Ukrainian (what's not aligned)",
   "recommendation": "strong_match" | "moderate_match" | "weak_match"
 }
 `;
@@ -191,7 +194,8 @@ IMPORTANT:
 - Be objective and fair
 - Consider both technical and soft skills
 - Evaluate AI literacy and orientation to modern tools
-- Look for genuine motivation and cultural fit potential${hasPDF || resumeFormatted ? `
+- Look for genuine motivation and cultural fit potential
+- ALL text values in the response MUST be in Ukrainian (УКРАЇНСЬКОЮ мовою)${hasPDF || resumeFormatted ? `
 - Use ALL available resume data (work experience, skills, education, achievements) to enrich your assessment
 - Relevant work experience from resume should positively influence the score
 - Skills and experience from the resume are CRITICAL — do not ignore them
@@ -201,11 +205,11 @@ Return your analysis as a JSON object with this structure:
 {
   "score": number (1-10),
   "category": "top_tier" | "strong" | "potential" | "not_fit",
-  "summary": "string (2-3 sentences)",
-  "strengths": ["string", "string", ...],
-  "concerns": ["string", "string", ...],
-  "best_fit_roles": ["string", "string", ...],
+  "summary": "string (2-3 sentences, in Ukrainian)",
+  "strengths": ["string in Ukrainian", ...],
+  "concerns": ["string in Ukrainian", ...],
+  "best_fit_roles": ["string in Ukrainian", ...],
   "recommendation": "yes" | "no",
-  "reasoning": "string (why this recommendation)"
+  "reasoning": "string (in Ukrainian)"
 }
 `;

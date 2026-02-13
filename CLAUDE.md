@@ -45,6 +45,7 @@ components/
   ui/                             # shadcn/ui primitives
   candidates/                     # CandidateCard, CandidateFilters, ResumeViewer, etc.
   dashboard/                      # Header, Sidebar
+    test-task/                    # TestTaskTimeline (timeline, submission preview, decision panel)
   outreach/                       # Outreach management UI
   public/                         # Landing page components
   requests/                       # RequestForm, RequestDetail
@@ -54,7 +55,7 @@ lib/
   ai/                             # AI layer
     claude.ts                     # analyzeWithClaude() wrapper
     prompts.ts                    # Analysis/matching prompts
-    outreach-prompts.ts           # Outreach message prompts
+    outreach-prompts.ts           # Outreach + test task decision message prompts
     classifyResponse.ts           # Classify candidate Telegram responses
     evaluateTestTask.ts           # AI test task evaluation
   auth/auth.ts                    # NextAuth config
@@ -110,7 +111,7 @@ middleware.ts                     # Auth middleware (protects /dashboard/*)
 - job_description (AI-generated)
 
 **candidates** — Applicants (warm + cold)
-- Contact: first_name, last_name, email, phone, telegram_username, preferred_contact_methods
+- Contact: first_name, last_name, email, phone, telegram_username, telegram_chat_id (BIGINT), preferred_contact_methods
 - Profile: about_text, why_vamos, key_skills, linkedin_url, portfolio_url, resume_url, resume_extracted_data (JSONB)
 - AI analysis: ai_score (1-10), ai_category (top_tier|strong|potential|not_fit), ai_summary, ai_strengths, ai_concerns, ai_recommendation, ai_reasoning
 - Sourcing: sourcing_method, profile_url, platform, current_position, location, experience_years, source (warm|cold)
@@ -127,7 +128,7 @@ middleware.ts                     # Auth middleware (protects /dashboard/*)
 - candidate_id, manager_id, text, created_at
 
 **candidate_conversations** — Communication log
-- candidate_id, direction (inbound|outbound), message_type, content, metadata, sent_at
+- candidate_id, direction (inbound|outbound), message_type (intro|test_task|follow_up|test_task_decision|…), content, metadata, sent_at
 
 **outreach_queue** — Scheduled outreach
 - candidate_id, request_id, intro_message, test_task_message
@@ -175,6 +176,8 @@ middleware.ts                     # Auth middleware (protects /dashboard/*)
 - `POST /api/test-task/submit` — Submit solution
 - `POST /api/test-task/extend-deadline` — Request extension
 - `POST /api/test-task/generate-message` — Generate message
+- `POST /api/test-task/generate-decision-message` — AI-generate approval/rejection message for candidate
+- `POST /api/test-task/decide` — Send decision (approved/rejected) + message to candidate via Telegram
 
 ### Telegram
 - `POST /api/telegram/webhook` — Webhook handler (classifies responses, handles commands)
@@ -209,15 +212,26 @@ middleware.ts                     # Auth middleware (protects /dashboard/*)
 
 ### Test Task Flow
 1. Manager schedules test task for candidate
-2. System sends task via email/Telegram
+2. System sends task via email/Telegram (or immediately when candidate responds positively in Telegram)
 3. Candidate submits via `/submit-test` page or Telegram
-4. AI evaluates submission
-5. Manager reviews AI evaluation
+4. AI evaluates submission (score 1-10 + detailed evaluation text)
+5. Manager reviews AI evaluation in TestTaskTimeline (expandable submission text + AI score/feedback)
+6. Manager clicks "Прийняти" or "Відхилити" → AI generates personalized message → manager reviews/edits → sends to candidate via Telegram
+7. On approve: `candidate_request_matches.status` → `'interview'`; on reject: → `'rejected'`
+8. Decision logged to `candidate_conversations` (message_type: `'test_task_decision'`)
+
+**Test task statuses:** `not_sent` → `scheduled` → `sent` → `submitted_on_time`/`submitted_late` → `evaluating` → `evaluated` → `approved`/`rejected`
+
+**Immediate sending:** When a candidate replies positively in Telegram (classified as `positive`), the webhook handler sends the test task immediately via `sendTestTaskDirectly()` instead of going through the cron queue. Duplicate prevention: checks `test_task_status` before sending.
 
 ### Telegram Bot & Mini App
 - `/start` — Sends welcome message with inline button that opens Mini App at `/apply`
-- Bot runs in polling mode locally (`npm run bot`), webhook mode in production
+- **Production:** webhook mode (`POST /api/telegram/webhook`). Set webhook via: `curl "https://api.telegram.org/bot<TOKEN>/setWebhook?url=<APP_URL>/api/telegram/webhook"`
+- **Local dev:** polling mode (`npm run bot`). **Important:** polling and webhook are mutually exclusive — kill the polling process before using webhook, as Telegram automatically removes the webhook when polling is active
+- Webhook handler uses `createServiceRoleClient()` to bypass RLS
+- Stores `telegram_chat_id` on first message from candidate (required for outbound messaging)
 - Incoming messages classified as: positive, negative, question, test_submission, deadline_request
+- On `positive` response: sends test task immediately (bypasses cron queue)
 - Auto-responds to questions using AI
 - Logs all conversations to candidate_conversations table
 
@@ -276,11 +290,12 @@ Ukrainian (primary), English, Turkish, Spanish — detection via `lib/language-u
 
 ## Important Patterns
 
-- **Supabase client:** Use `createClient()` from `lib/supabase/client.ts` for regular requests; use service role client (from `SUPABASE_SERVICE_ROLE_KEY`) in cron jobs to bypass RLS.
-- **AI calls:** Text-only via `analyzeWithClaude()`, with PDF via `analyzeWithClaudeAndPDF()` in `lib/ai/claude.ts`. Prompts live in `lib/ai/prompts.ts`.
-- **DB types:** `lib/supabase/types.ts` defines all table types — update when schema changes.
+- **Supabase client:** Use `createClient()` from `lib/supabase/client.ts` for regular requests; use service role client (from `SUPABASE_SERVICE_ROLE_KEY`) in cron jobs and webhook handler to bypass RLS.
+- **AI calls:** Text-only via `analyzeWithClaude()`, with PDF via `analyzeWithClaudeAndPDF()` in `lib/ai/claude.ts`. Prompts live in `lib/ai/prompts.ts`, outreach/decision prompts in `lib/ai/outreach-prompts.ts`.
+- **DB types:** `lib/supabase/types.ts` defines all table types — update when schema changes. Use `as never` cast for Supabase insert/update objects when TypeScript complains about strict typing.
 - **Migrations:** SQL files in `supabase/migrations/`, numbered sequentially (002-009).
 - **Components:** shadcn/ui in `components/ui/`, feature components grouped by domain.
+- **Vercel Hobby plan:** Cron jobs limited to once per day (`0 10 * * *`). Critical time-sensitive operations (like test task sending) should be handled immediately in webhook/API handlers, not via cron.
 
 ## PDF Resume Processing
 

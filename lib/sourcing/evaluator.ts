@@ -127,16 +127,17 @@ IMPORTANT:
 - Consider the platform source (${profile.platform}) - some platforms show limited data
 - If limited information, note what would be helpful to know
 - Focus on technical skills match with our active requests
+- ALL text values in the response MUST be in Ukrainian (УКРАЇНСЬКОЮ мовою)
 
 Return your analysis as a JSON object:
 {
   "score": number (1-10),
   "category": "top_tier" | "strong" | "potential" | "not_fit",
-  "summary": "string",
-  "strengths": ["string", ...],
-  "concerns": ["string", ...],
+  "summary": "string in Ukrainian",
+  "strengths": ["string in Ukrainian", ...],
+  "concerns": ["string in Ukrainian", ...],
   "recommendation": "yes" | "no",
-  "reasoning": "string"
+  "reasoning": "string in Ukrainian"
 }
 `;
 
@@ -163,11 +164,13 @@ Calculate a match score (0-100) based on:
 - Experience level fit (20%)
 - Location/remote compatibility (10%)
 
+ALL text values in the response MUST be in Ukrainian (УКРАЇНСЬКОЮ мовою).
+
 Return JSON:
 {
   "match_score": number (0-100),
-  "alignment": "string (what matches well)",
-  "missing": "string (what's missing or unknown)",
+  "alignment": "string in Ukrainian (what matches well)",
+  "missing": "string in Ukrainian (what's missing or unknown)",
   "recommendation": "strong_match" | "moderate_match" | "weak_match"
 }
 `;

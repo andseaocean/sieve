@@ -50,16 +50,18 @@ Scoring guide:
 
 Be constructive and fair. Focus on what candidate DID, not what they didn't do.
 
+ALL text values in the response MUST be in Ukrainian (УКРАЇНСЬКОЮ мовою).
+
 Return JSON only:
 {
   "score": 8,
-  "evaluation": "Strong solution that demonstrates...",
+  "evaluation": "Сильне рішення, яке демонструє...",
   "strengths": [
-    "Clear explanation of approach",
-    "Good code structure"
+    "Чітке пояснення підходу",
+    "Гарна структура коду"
   ],
   "improvements": [
-    "Could add more comments"
+    "Можна додати більше коментарів"
   ]
 }`;
 
