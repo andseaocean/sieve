@@ -77,6 +77,7 @@ export default function ApplyPage() {
     register,
     handleSubmit,
     trigger,
+    setValue,
     formState: { errors },
     watch,
   } = useForm<ApplicationFormData>({
@@ -87,6 +88,18 @@ export default function ApplyPage() {
     },
   });
 
+  // Auto-fill contact method from Telegram
+  useEffect(() => {
+    if (!isTelegram) return;
+    const tg = window.Telegram?.WebApp;
+    const username = tg?.initDataUnsafe?.user?.username;
+
+    setValue('preferred_contact_methods', ['telegram']);
+    if (username) {
+      setValue('telegram_username', username);
+    }
+  }, [isTelegram, setValue]);
+
   const watchContactMethods = watch('preferred_contact_methods');
 
   const validateCurrentStep = async (): Promise<boolean> => {
@@ -94,10 +107,12 @@ export default function ApplyPage() {
 
     switch (currentStep) {
       case 1:
-        fieldsToValidate = ['first_name', 'last_name', 'email', 'preferred_contact_methods'];
-        // Also validate telegram_username if telegram is selected
-        if (Array.isArray(watchContactMethods) && watchContactMethods.includes('telegram')) {
-          fieldsToValidate.push('telegram_username');
+        fieldsToValidate = ['first_name', 'last_name', 'email'];
+        if (!isTelegram) {
+          fieldsToValidate.push('preferred_contact_methods');
+          if (Array.isArray(watchContactMethods) && watchContactMethods.includes('telegram')) {
+            fieldsToValidate.push('telegram_username');
+          }
         }
         break;
       case 2:
@@ -262,44 +277,46 @@ export default function ApplyPage() {
                       />
                     </div>
 
-                    {/* Contact Preferences */}
-                    <div className="space-y-3 pt-4 border-t">
-                      <Label>Як з вами зв&apos;язатися? *</Label>
-                      <p className="text-xs text-muted-foreground">
-                        Оберіть зручний спосіб для отримання повідомлень від нас
-                      </p>
+                    {/* Contact Preferences — hidden in Telegram Mini App */}
+                    {!isTelegram && (
+                      <div className="space-y-3 pt-4 border-t">
+                        <Label>Як з вами зв&apos;язатися? *</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Оберіть зручний спосіб для отримання повідомлень від нас
+                        </p>
 
-                      <div className="space-y-2">
-                        <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
-                          <input
-                            type="checkbox"
-                            value="email"
-                            {...register('preferred_contact_methods')}
-                            className="h-4 w-4 rounded border-gray-300"
-                          />
-                          <Mail className="h-4 w-4 text-muted-foreground" />
-                          <span>Email</span>
-                        </label>
+                        <div className="space-y-2">
+                          <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                            <input
+                              type="checkbox"
+                              value="email"
+                              {...register('preferred_contact_methods')}
+                              className="h-4 w-4 rounded border-gray-300"
+                            />
+                            <Mail className="h-4 w-4 text-muted-foreground" />
+                            <span>Email</span>
+                          </label>
 
-                        <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
-                          <input
-                            type="checkbox"
-                            value="telegram"
-                            {...register('preferred_contact_methods')}
-                            className="h-4 w-4 rounded border-gray-300"
-                          />
-                          <MessageCircle className="h-4 w-4 text-muted-foreground" />
-                          <span>Telegram</span>
-                        </label>
+                          <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                            <input
+                              type="checkbox"
+                              value="telegram"
+                              {...register('preferred_contact_methods')}
+                              className="h-4 w-4 rounded border-gray-300"
+                            />
+                            <MessageCircle className="h-4 w-4 text-muted-foreground" />
+                            <span>Telegram</span>
+                          </label>
+                        </div>
+
+                        {errors.preferred_contact_methods && (
+                          <p className="text-sm text-red-500">{errors.preferred_contact_methods.message}</p>
+                        )}
                       </div>
+                    )}
 
-                      {errors.preferred_contact_methods && (
-                        <p className="text-sm text-red-500">{errors.preferred_contact_methods.message}</p>
-                      )}
-                    </div>
-
-                    {/* Telegram Username - conditional */}
-                    {Array.isArray(watchContactMethods) && watchContactMethods.includes('telegram') && (
+                    {/* Telegram Username - conditional, hidden in Telegram Mini App */}
+                    {!isTelegram && Array.isArray(watchContactMethods) && watchContactMethods.includes('telegram') && (
                       <div className="space-y-2">
                         <Label htmlFor="telegram_username">Telegram username *</Label>
                         <div className="relative">
