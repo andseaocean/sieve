@@ -42,6 +42,48 @@ export async function analyzeWithClaude(prompt: string): Promise<string> {
   return textContent.text;
 }
 
+/**
+ * Analyze with Claude, optionally including a PDF document.
+ * Claude natively reads PDF files — no need for pdf-parse.
+ */
+export async function analyzeWithClaudeAndPDF(
+  prompt: string,
+  pdfBase64?: string
+): Promise<string> {
+  const content: Anthropic.Messages.ContentBlockParam[] = [];
+
+  if (pdfBase64) {
+    content.push({
+      type: 'document',
+      source: {
+        type: 'base64',
+        media_type: 'application/pdf',
+        data: pdfBase64,
+      },
+    });
+  }
+
+  content.push({ type: 'text', text: prompt });
+
+  const message = await anthropic.messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 2048,
+    messages: [
+      {
+        role: 'user',
+        content,
+      },
+    ],
+  });
+
+  const textContent = message.content.find((block) => block.type === 'text');
+  if (!textContent || textContent.type !== 'text') {
+    throw new Error('No text content in Claude response');
+  }
+
+  return textContent.text;
+}
+
 export function parseAIAnalysisResult(response: string): AIAnalysisResult {
   // Try to extract JSON from the response
   const jsonMatch = response.match(/\{[\s\S]*\}/);

@@ -7,13 +7,11 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/client';
-import { analyzeWithClaude, parseAIAnalysisResult, parseAIMatchResult, MOCK_ANALYSIS_RESULT, MOCK_MATCH_RESULT } from '@/lib/ai/claude';
+import { analyzeWithClaude, analyzeWithClaudeAndPDF, parseAIAnalysisResult, parseAIMatchResult, MOCK_ANALYSIS_RESULT, MOCK_MATCH_RESULT } from '@/lib/ai/claude';
 import { GENERAL_CANDIDATE_ANALYSIS_PROMPT, MATCH_CANDIDATE_TO_REQUEST_PROMPT } from '@/lib/ai/prompts';
 import { translateCandidateContent } from '@/lib/translation';
 import { Candidate, Request } from '@/lib/supabase/types';
-import { parsePDFFromURL } from '@/lib/pdf/parser';
-import { extractResumeData, formatResumeForAnalysis } from '@/lib/pdf/extractor';
-import type { ResumeData } from '@/lib/pdf/types';
+import { downloadResumePDFAsBase64 } from '@/lib/pdf/downloader';
 
 const USE_MOCK_AI = process.env.NODE_ENV === 'development' && !process.env.ANTHROPIC_API_KEY;
 
@@ -99,56 +97,17 @@ export async function POST(
       why_vamos: candidate.why_vamos_translated || candidate.why_vamos,
     };
 
-    // Process resume data for AI analysis
-    let resumeFormatted: string | undefined;
-    const existingResumeData = (candidate as Candidate & { resume_extracted_data?: ResumeData | null }).resume_extracted_data;
+    // Download PDF resume as base64 for Claude (no pdf-parse needed)
+    let pdfBase64: string | null = null;
     const candidateResumeUrl = (candidate as Candidate & { resume_url?: string }).resume_url;
 
-    if (existingResumeData?.fullText || candidateResumeUrl) {
+    if (candidateResumeUrl) {
       try {
-        let resumeData: ResumeData;
-
-        if (existingResumeData?.fullText && existingResumeData.extracted.skills.length > 0) {
-          // Already fully extracted — use it directly
-          resumeData = existingResumeData;
-          console.log('Background AI: Using existing resume data for candidate', candidateId);
-        } else if (existingResumeData?.fullText) {
-          // We have raw text from apply step — run AI extraction to get structured data
-          console.log('Background AI: Extracting structured data from raw resume text for candidate', candidateId);
-          resumeData = await extractResumeData(
-            existingResumeData.fullText,
-            existingResumeData.metadata.pages,
-            existingResumeData.metadata.size || 0
-          );
-
-          // Save extracted data for future use
-          await supabase
-            .from('candidates')
-            .update({ resume_extracted_data: resumeData } as never)
-            .eq('id', candidateId);
-        } else if (candidateResumeUrl) {
-          // No raw text — parse PDF from URL
-          console.log('Background AI: Parsing resume PDF from URL for candidate', candidateId);
-          const { text, pages, size } = await parsePDFFromURL(candidateResumeUrl);
-          resumeData = await extractResumeData(text, pages, size);
-
-          // Save extracted data for future use
-          await supabase
-            .from('candidates')
-            .update({ resume_extracted_data: resumeData } as never)
-            .eq('id', candidateId);
-        } else {
-          throw new Error('No resume data available');
-        }
-
-        resumeFormatted = formatResumeForAnalysis(resumeData);
-
-        console.log('Background AI: Resume ready for analysis', {
-          skills: resumeData.extracted.skills.length,
-          experience: resumeData.extracted.experience.length,
-        });
-      } catch (resumeError) {
-        console.error('Background AI: Failed to process resume, continuing without it', resumeError);
+        console.log('Background AI: Downloading resume PDF for candidate', candidateId);
+        pdfBase64 = await downloadResumePDFAsBase64(supabase, candidateResumeUrl);
+        console.log('Background AI: Resume PDF downloaded, size:', Math.round(pdfBase64.length / 1024), 'KB base64');
+      } catch (pdfError) {
+        console.error('Background AI: Failed to download resume PDF, continuing without it', pdfError);
       }
     }
 
@@ -159,8 +118,11 @@ export async function POST(
       analysis = MOCK_ANALYSIS_RESULT;
     } else {
       console.log('Background AI: Running Claude analysis for candidate', candidateId);
-      const prompt = GENERAL_CANDIDATE_ANALYSIS_PROMPT(candidateForAnalysis as Candidate, resumeFormatted);
-      const response = await analyzeWithClaude(prompt);
+      const hasPDF = !!pdfBase64;
+      const prompt = GENERAL_CANDIDATE_ANALYSIS_PROMPT(candidateForAnalysis as Candidate, undefined, hasPDF);
+      const response = pdfBase64
+        ? await analyzeWithClaudeAndPDF(prompt, pdfBase64)
+        : await analyzeWithClaude(prompt);
       analysis = parseAIAnalysisResult(response);
     }
 

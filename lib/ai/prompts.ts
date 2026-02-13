@@ -149,8 +149,9 @@ Focus on opportunities and growth, not just requirements.
 Return ONLY the job posting text, no additional comments or explanations.
 `;
 
-// General candidate analysis without a specific request (with optional resume data)
-export const GENERAL_CANDIDATE_ANALYSIS_PROMPT = (candidate: Candidate, resumeFormatted?: string) => `
+// General candidate analysis without a specific request
+// hasPDF: indicates whether a PDF document is attached to the message
+export const GENERAL_CANDIDATE_ANALYSIS_PROMPT = (candidate: Candidate, resumeFormatted?: string, hasPDF?: boolean) => `
 You are an expert HR analyst for Vamos, an AI-first company.
 
 Analyze this candidate profile and provide a general assessment of their potential fit for a tech company.
@@ -164,6 +165,8 @@ LinkedIn: ${candidate.linkedin_url || 'Not provided'}
 Portfolio: ${candidate.portfolio_url || 'Not provided'}
 
 ${resumeFormatted ? `\nRESUME DATA:\n${resumeFormatted}\n` : ''}
+
+${hasPDF ? `IMPORTANT: A PDF resume is attached to this message. You MUST thoroughly read and analyze the entire PDF document. Extract all work experience, skills, education, achievements, and any other relevant information from it. The PDF resume is a PRIMARY source of information about this candidate — treat it with equal or higher importance than the text fields above.\n` : ''}
 
 EVALUATION CRITERIA:
 1. Overall Score (1-10):
@@ -188,10 +191,11 @@ IMPORTANT:
 - Be objective and fair
 - Consider both technical and soft skills
 - Evaluate AI literacy and orientation to modern tools
-- Look for genuine motivation and cultural fit potential${resumeFormatted ? `
-- Use resume data (work experience, skills, education) to enrich your assessment
+- Look for genuine motivation and cultural fit potential${hasPDF || resumeFormatted ? `
+- Use ALL available resume data (work experience, skills, education, achievements) to enrich your assessment
 - Relevant work experience from resume should positively influence the score
-- Technical skills from resume that match common tech company needs are a plus` : ''}
+- Skills and experience from the resume are CRITICAL — do not ignore them
+- If the resume shows relevant work experience, this MUST be reflected in strengths and summary` : ''}
 
 Return your analysis as a JSON object with this structure:
 {

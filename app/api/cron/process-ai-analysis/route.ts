@@ -8,13 +8,11 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/client';
-import { analyzeWithClaude, parseAIAnalysisResult, parseAIMatchResult, MOCK_ANALYSIS_RESULT, MOCK_MATCH_RESULT } from '@/lib/ai/claude';
+import { analyzeWithClaude, analyzeWithClaudeAndPDF, parseAIAnalysisResult, parseAIMatchResult, MOCK_ANALYSIS_RESULT, MOCK_MATCH_RESULT } from '@/lib/ai/claude';
 import { GENERAL_CANDIDATE_ANALYSIS_PROMPT, MATCH_CANDIDATE_TO_REQUEST_PROMPT } from '@/lib/ai/prompts';
 import { translateCandidateContent } from '@/lib/translation';
 import { Candidate, Request } from '@/lib/supabase/types';
-import { extractResumeData, formatResumeForAnalysis } from '@/lib/pdf/extractor';
-import { parsePDFFromURL } from '@/lib/pdf/parser';
-import type { ResumeData } from '@/lib/pdf/types';
+import { downloadResumePDFAsBase64 } from '@/lib/pdf/downloader';
 
 const USE_MOCK_AI = process.env.NODE_ENV === 'development' && !process.env.ANTHROPIC_API_KEY;
 const BATCH_SIZE = 5; // Process up to 5 candidates per cron run
@@ -96,53 +94,17 @@ async function processCandidate(candidateId: string): Promise<{ success: boolean
       why_vamos: candidate.why_vamos_translated || candidate.why_vamos,
     };
 
-    // Process resume data for AI analysis
-    let resumeFormatted: string | undefined;
-    const existingResumeData = (candidate as Candidate & { resume_extracted_data?: ResumeData | null }).resume_extracted_data;
+    // Download PDF resume as base64 for Claude (no pdf-parse needed)
+    let pdfBase64: string | null = null;
     const candidateResumeUrl = (candidate as Candidate & { resume_url?: string }).resume_url;
 
-    if (existingResumeData?.fullText || candidateResumeUrl) {
+    if (candidateResumeUrl) {
       try {
-        let resumeData: ResumeData;
-
-        if (existingResumeData?.fullText && existingResumeData.extracted.skills.length > 0) {
-          // Already fully extracted
-          resumeData = existingResumeData;
-          console.log('AI Cron: Using existing resume data for candidate', candidateId);
-        } else if (existingResumeData?.fullText) {
-          // Have raw text — run AI extraction
-          console.log('AI Cron: Extracting structured data from resume text for candidate', candidateId);
-          resumeData = await extractResumeData(
-            existingResumeData.fullText,
-            existingResumeData.metadata.pages,
-            existingResumeData.metadata.size || 0
-          );
-
-          await supabase
-            .from('candidates')
-            .update({ resume_extracted_data: resumeData } as never)
-            .eq('id', candidateId);
-        } else if (candidateResumeUrl) {
-          // Parse PDF from URL
-          console.log('AI Cron: Parsing resume PDF from URL for candidate', candidateId);
-          const { text, pages, size } = await parsePDFFromURL(candidateResumeUrl);
-          resumeData = await extractResumeData(text, pages, size);
-
-          await supabase
-            .from('candidates')
-            .update({ resume_extracted_data: resumeData } as never)
-            .eq('id', candidateId);
-        } else {
-          throw new Error('No resume data available');
-        }
-
-        resumeFormatted = formatResumeForAnalysis(resumeData);
-        console.log('AI Cron: Resume ready for analysis', {
-          skills: resumeData.extracted.skills.length,
-          experience: resumeData.extracted.experience.length,
-        });
-      } catch (resumeError) {
-        console.error('AI Cron: Failed to process resume, continuing without it', resumeError);
+        console.log('AI Cron: Downloading resume PDF for candidate', candidateId);
+        pdfBase64 = await downloadResumePDFAsBase64(supabase, candidateResumeUrl);
+        console.log('AI Cron: Resume PDF downloaded, size:', Math.round(pdfBase64.length / 1024), 'KB base64');
+      } catch (pdfError) {
+        console.error('AI Cron: Failed to download resume PDF, continuing without it', pdfError);
       }
     }
 
@@ -153,8 +115,11 @@ async function processCandidate(candidateId: string): Promise<{ success: boolean
       analysis = MOCK_ANALYSIS_RESULT;
     } else {
       console.log('AI Cron: Running Claude analysis for candidate', candidateId);
-      const prompt = GENERAL_CANDIDATE_ANALYSIS_PROMPT(candidateForAnalysis as Candidate, resumeFormatted);
-      const response = await analyzeWithClaude(prompt);
+      const hasPDF = !!pdfBase64;
+      const prompt = GENERAL_CANDIDATE_ANALYSIS_PROMPT(candidateForAnalysis as Candidate, undefined, hasPDF);
+      const response = pdfBase64
+        ? await analyzeWithClaudeAndPDF(prompt, pdfBase64)
+        : await analyzeWithClaude(prompt);
       analysis = parseAIAnalysisResult(response);
     }
 
