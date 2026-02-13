@@ -214,11 +214,21 @@ middleware.ts                     # Auth middleware (protects /dashboard/*)
 4. AI evaluates submission
 5. Manager reviews AI evaluation
 
-### Telegram Bot
-- `/start` — Shows Telegram Mini App for application
+### Telegram Bot & Mini App
+- `/start` — Sends welcome message with inline button that opens Mini App at `/apply`
+- Bot runs in polling mode locally (`npm run bot`), webhook mode in production
 - Incoming messages classified as: positive, negative, question, test_submission, deadline_request
 - Auto-responds to questions using AI
 - Logs all conversations to candidate_conversations table
+
+### Telegram Mini App Integration
+- Telegram Web App SDK loaded globally in `app/layout.tsx` (`telegram-web-app.js`)
+- Detection: `window.Telegram.WebApp.initData` is non-empty **only** when opened from Telegram (SDK creates `window.Telegram.WebApp` on all pages, so checking just its existence is not enough)
+- **Public layout** (`app/(public)/layout.tsx`): header and footer hidden when `isTelegram`
+- **Apply form** (`app/(public)/apply/page.tsx`): "Як з вами зв'язатися?" block and telegram username field hidden; auto-sets `preferred_contact_methods: ['telegram']` and fills `telegram_username` from `initDataUnsafe.user.username`
+- **Thank-you page** (`app/(public)/thank-you/page.tsx`): shows "Закрити та повернутися в Telegram" button (calls `WebApp.close()`) instead of "Повернутися на головну"
+- Landing page CTA buttons link to `https://t.me/vamos_hiring_bot`
+- TypeScript declarations for Telegram WebApp API: `lib/telegram/types.ts`
 
 ### Bookmarklet (Sourcing)
 - Installed in browser, activated on candidate profile pages
