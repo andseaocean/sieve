@@ -138,6 +138,14 @@ async function handleMessage(message: TelegramMessage) {
     return;
   }
 
+  // Store chat_id for future outbound messages
+  if (!(candidate as Candidate & { telegram_chat_id?: number }).telegram_chat_id) {
+    await supabase
+      .from('candidates')
+      .update({ telegram_chat_id: chatId } as never)
+      .eq('id', candidate.id);
+  }
+
   // Log incoming message
   await supabase.from('candidate_conversations').insert({
     candidate_id: candidate.id,

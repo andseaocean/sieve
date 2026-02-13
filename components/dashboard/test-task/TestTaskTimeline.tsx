@@ -1,13 +1,16 @@
 'use client';
 
 import { useState } from 'react';
-import { Clock, CheckCircle, AlertTriangle, FileText, Send, Star, ChevronDown, ChevronUp } from 'lucide-react';
+import { Clock, CheckCircle, AlertTriangle, FileText, Send, Star, ChevronDown, ChevronUp, ThumbsUp, ThumbsDown, Loader2, X } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { toast } from 'sonner';
 
 interface TestTaskTimelineProps {
   candidate: {
+    id: string;
     test_task_status?: string | null;
     test_task_sent_at?: string | null;
     test_task_original_deadline?: string | null;
@@ -30,6 +33,8 @@ const statusLabels: Record<string, string> = {
   submitted_late: 'Здано із запізненням',
   evaluating: 'Оцінюється',
   evaluated: 'Оцінено',
+  approved: 'Прийнято',
+  rejected: 'Відхилено',
 };
 
 const statusColors: Record<string, string> = {
@@ -40,6 +45,8 @@ const statusColors: Record<string, string> = {
   submitted_late: 'bg-orange-100 text-orange-700',
   evaluating: 'bg-purple-100 text-purple-700',
   evaluated: 'bg-emerald-100 text-emerald-700',
+  approved: 'bg-green-100 text-green-700',
+  rejected: 'bg-red-100 text-red-700',
 };
 
 function formatDate(dateStr: string): string {
@@ -92,8 +99,157 @@ function SubmissionPreview({ text }: { text: string }) {
   );
 }
 
+function DecisionPanel({ candidateId, onDecided }: { candidateId: string; onDecided: (decision: string) => void }) {
+  const [activeDecision, setActiveDecision] = useState<'approved' | 'rejected' | null>(null);
+  const [message, setMessage] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+
+  const handleDecisionClick = async (decision: 'approved' | 'rejected') => {
+    setActiveDecision(decision);
+    setIsGenerating(true);
+    setMessage('');
+
+    try {
+      const res = await fetch('/api/test-task/generate-decision-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ candidateId, decision }),
+      });
+
+      if (!res.ok) throw new Error('Failed to generate message');
+
+      const data = await res.json();
+      setMessage(data.message);
+    } catch {
+      toast.error('Не вдалося згенерувати повідомлення');
+      setActiveDecision(null);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleSend = async () => {
+    if (!activeDecision || !message.trim()) return;
+
+    setIsSending(true);
+    try {
+      const res = await fetch('/api/test-task/decide', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          candidateId,
+          decision: activeDecision,
+          message: message.trim(),
+        }),
+      });
+
+      if (!res.ok) throw new Error('Failed to send decision');
+
+      const data = await res.json();
+
+      if (data.telegramSent) {
+        toast.success(activeDecision === 'approved' ? 'Кандидата прийнято, повідомлення надіслано' : 'Відмову надіслано кандидату');
+      } else {
+        toast.success('Рішення збережено (повідомлення не вдалося надіслати в Telegram)');
+      }
+
+      onDecided(activeDecision);
+    } catch {
+      toast.error('Не вдалося надіслати рішення');
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setActiveDecision(null);
+    setMessage('');
+  };
+
+  // Show buttons if no decision is being made
+  if (!activeDecision) {
+    return (
+      <div className="pt-3 border-t">
+        <h4 className="text-sm font-semibold mb-3">Рішення</h4>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            className="bg-green-600 hover:bg-green-700 text-white"
+            onClick={() => handleDecisionClick('approved')}
+          >
+            <ThumbsUp className="w-4 h-4 mr-1" />
+            Прийняти
+          </Button>
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={() => handleDecisionClick('rejected')}
+          >
+            <ThumbsDown className="w-4 h-4 mr-1" />
+            Відхилити
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Show message editor
+  return (
+    <div className="pt-3 border-t">
+      <div className="flex items-center justify-between mb-2">
+        <h4 className="text-sm font-semibold">
+          {activeDecision === 'approved' ? 'Повідомлення про прийняття' : 'Повідомлення про відмову'}
+        </h4>
+        <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={handleCancel} disabled={isSending}>
+          <X className="w-3 h-3 mr-1" />
+          Скасувати
+        </Button>
+      </div>
+
+      {isGenerating ? (
+        <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+          Генерую повідомлення...
+        </div>
+      ) : (
+        <>
+          <Textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            rows={6}
+            className="text-sm resize-none"
+            placeholder="Текст повідомлення..."
+          />
+          <div className="flex justify-end mt-2">
+            <Button
+              size="sm"
+              onClick={handleSend}
+              disabled={isSending || !message.trim()}
+              className={activeDecision === 'approved' ? 'bg-green-600 hover:bg-green-700' : ''}
+              variant={activeDecision === 'rejected' ? 'destructive' : 'default'}
+            >
+              {isSending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                  Надсилаю...
+                </>
+              ) : (
+                <>
+                  <Send className="w-4 h-4 mr-1" />
+                  Надіслати
+                </>
+              )}
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export function TestTaskTimeline({ candidate }: TestTaskTimelineProps) {
-  const status = candidate.test_task_status || 'not_sent';
+  const [status, setStatus] = useState(candidate.test_task_status || 'not_sent');
 
   if (status === 'not_sent') {
     return null;
@@ -102,6 +258,9 @@ export function TestTaskTimeline({ candidate }: TestTaskTimelineProps) {
   const isOverdue = candidate.test_task_current_deadline
     && new Date(candidate.test_task_current_deadline) < new Date()
     && !candidate.test_task_submitted_at;
+
+  const canDecide = candidate.test_task_ai_score != null
+    && !['approved', 'rejected', 'not_sent', 'scheduled', 'sent'].includes(status);
 
   return (
     <Card>
@@ -221,6 +380,14 @@ export function TestTaskTimeline({ candidate }: TestTaskTimelineProps) {
               &quot;{candidate.test_task_candidate_feedback}&quot;
             </p>
           </div>
+        )}
+
+        {/* Decision Panel */}
+        {canDecide && (
+          <DecisionPanel
+            candidateId={candidate.id}
+            onDecided={(decision) => setStatus(decision)}
+          />
         )}
       </CardContent>
     </Card>

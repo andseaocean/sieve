@@ -13,9 +13,9 @@ export type OutreachStatus = 'pending' | 'scheduled' | 'sent' | 'responded' | 'd
 export type OutreachQueueStatus = 'scheduled' | 'processing' | 'sent' | 'failed' | 'cancelled';
 export type ContactMethod = 'email' | 'telegram';
 export type OutreachMessageType = 'intro' | 'test_task' | 'follow_up';
-export type TestTaskStatus = 'not_sent' | 'scheduled' | 'sent' | 'submitted_on_time' | 'submitted_late' | 'evaluating' | 'evaluated';
+export type TestTaskStatus = 'not_sent' | 'scheduled' | 'sent' | 'submitted_on_time' | 'submitted_late' | 'evaluating' | 'evaluated' | 'approved' | 'rejected';
 export type ConversationDirection = 'outbound' | 'inbound';
-export type ConversationMessageType = 'outreach' | 'test_task' | 'candidate_response' | 'ai_reply' | 'deadline_extension_request' | 'deadline_extension_granted' | 'deadline_extension_denied';
+export type ConversationMessageType = 'outreach' | 'test_task' | 'candidate_response' | 'ai_reply' | 'deadline_extension_request' | 'deadline_extension_granted' | 'deadline_extension_denied' | 'test_task_decision';
 
 export type Database = {
   public: {
@@ -159,6 +159,7 @@ export type Database = {
           key_skills_translated: string | null;
           // Outreach fields
           telegram_username: string | null;
+          telegram_chat_id: number | null;
           preferred_contact_methods: ContactMethod[] | null;
           outreach_status: OutreachStatus | null;
           outreach_sent_at: string | null;
@@ -215,6 +216,7 @@ export type Database = {
           key_skills_translated?: string | null;
           // Outreach fields
           telegram_username?: string | null;
+          telegram_chat_id?: number | null;
           preferred_contact_methods?: ContactMethod[] | null;
           outreach_status?: OutreachStatus | null;
           outreach_sent_at?: string | null;
@@ -271,6 +273,7 @@ export type Database = {
           key_skills_translated?: string | null;
           // Outreach fields
           telegram_username?: string | null;
+          telegram_chat_id?: number | null;
           preferred_contact_methods?: ContactMethod[] | null;
           outreach_status?: OutreachStatus | null;
           outreach_sent_at?: string | null;

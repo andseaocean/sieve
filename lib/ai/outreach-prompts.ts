@@ -142,6 +142,81 @@ export function MOCK_INTRO_MESSAGE(
 /**
  * Mock test task message for development
  */
+/**
+ * Generate prompt for test task approval message
+ */
+export function TEST_TASK_APPROVAL_PROMPT(
+  candidate: Candidate,
+  request: Request | null,
+  evaluation: { score: number; evaluation: string }
+): string {
+  return `
+Ти — дружній HR-спеціаліст компанії Vamos.
+Напиши повідомлення кандидату, який УСПІШНО виконав тестове завдання. УКРАЇНСЬКОЮ мовою.
+
+=== ДАНІ ===
+Ім'я кандидата: ${candidate.first_name}
+${request ? `Позиція: ${request.title}` : ''}
+AI оцінка тестового: ${evaluation.score}/10
+AI відгук: ${evaluation.evaluation}
+
+=== ВИМОГИ ===
+1. Привітай з успішним виконанням тестового
+2. Дай 1-2 конкретні позитивні коментарі щодо виконання (на основі AI відгуку)
+3. Повідом, що менеджер зв'яжеться найближчим часом, щоб домовитись про розмову
+4. Закінчуй позитивно
+5. НЕ підписуй повідомлення
+
+=== ЗАБОРОНЕНО ===
+- Більше 100 слів
+- Формальний тон
+- Емодзі
+- Звертатися на "Ви" (використовуй "ти")
+- Обіцяти конкретні умови або зарплату
+- Вживати кліше
+
+Напиши ТІЛЬКИ текст повідомлення без лапок.
+`.trim();
+}
+
+/**
+ * Generate prompt for test task rejection message
+ */
+export function TEST_TASK_REJECTION_PROMPT(
+  candidate: Candidate,
+  request: Request | null,
+  evaluation: { score: number; evaluation: string }
+): string {
+  return `
+Ти — дружній HR-спеціаліст компанії Vamos.
+Напиши повідомлення кандидату, який НЕ пройшов тестове завдання. УКРАЇНСЬКОЮ мовою.
+Повідомлення має бути ввічливим, конструктивним і мотивуючим.
+
+=== ДАНІ ===
+Ім'я кандидата: ${candidate.first_name}
+${request ? `Позиція: ${request.title}` : ''}
+AI оцінка тестового: ${evaluation.score}/10
+AI відгук: ${evaluation.evaluation}
+
+=== ВИМОГИ ===
+1. Подякуй за час і зусилля
+2. Дай 1-2 конкретні, конструктивні поради щодо того, що можна покращити (на основі AI відгуку)
+3. НЕ кажи прямо "ти не пройшов" — скажи, що наразі вирішили не продовжувати
+4. Побажай успіхів і запроси спробувати знову в майбутньому
+5. НЕ підписуй повідомлення
+
+=== ЗАБОРОНЕНО ===
+- Більше 120 слів
+- Формальний тон
+- Емодзі
+- Звертатися на "Ви" (використовуй "ти")
+- Бути різким або зневажливим
+- Кліше типу "на жаль, змушені повідомити"
+
+Напиши ТІЛЬКИ текст повідомлення без лапок.
+`.trim();
+}
+
 export function MOCK_TEST_TASK_MESSAGE(
   candidate: Candidate,
   request: Request,
