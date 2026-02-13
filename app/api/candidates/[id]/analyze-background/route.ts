@@ -102,41 +102,48 @@ export async function POST(
     // Process resume data for AI analysis
     let resumeFormatted: string | undefined;
     const existingResumeData = (candidate as Candidate & { resume_extracted_data?: ResumeData | null }).resume_extracted_data;
+    const candidateResumeUrl = (candidate as Candidate & { resume_url?: string }).resume_url;
 
-    if (existingResumeData?.fullText && existingResumeData.extracted.skills.length > 0) {
-      // Already extracted — use it directly
-      resumeFormatted = formatResumeForAnalysis(existingResumeData);
-    } else if ((candidate as Candidate & { resume_url?: string }).resume_url) {
-      // Need to parse and extract from PDF
+    if (existingResumeData?.fullText || candidateResumeUrl) {
       try {
-        console.log('Background AI: Parsing resume PDF for candidate', candidateId);
-
         let resumeData: ResumeData;
 
-        if (existingResumeData?.fullText) {
-          // We have raw text from apply step — run AI extraction
+        if (existingResumeData?.fullText && existingResumeData.extracted.skills.length > 0) {
+          // Already fully extracted — use it directly
+          resumeData = existingResumeData;
+          console.log('Background AI: Using existing resume data for candidate', candidateId);
+        } else if (existingResumeData?.fullText) {
+          // We have raw text from apply step — run AI extraction to get structured data
+          console.log('Background AI: Extracting structured data from raw resume text for candidate', candidateId);
           resumeData = await extractResumeData(
             existingResumeData.fullText,
             existingResumeData.metadata.pages,
             existingResumeData.metadata.size || 0
           );
-        } else {
-          // Parse PDF from URL
-          const { text, pages, size } = await parsePDFFromURL(
-            (candidate as Candidate & { resume_url: string }).resume_url
-          );
+
+          // Save extracted data for future use
+          await supabase
+            .from('candidates')
+            .update({ resume_extracted_data: resumeData } as never)
+            .eq('id', candidateId);
+        } else if (candidateResumeUrl) {
+          // No raw text — parse PDF from URL
+          console.log('Background AI: Parsing resume PDF from URL for candidate', candidateId);
+          const { text, pages, size } = await parsePDFFromURL(candidateResumeUrl);
           resumeData = await extractResumeData(text, pages, size);
+
+          // Save extracted data for future use
+          await supabase
+            .from('candidates')
+            .update({ resume_extracted_data: resumeData } as never)
+            .eq('id', candidateId);
+        } else {
+          throw new Error('No resume data available');
         }
 
         resumeFormatted = formatResumeForAnalysis(resumeData);
 
-        // Save extracted data for future use
-        await supabase
-          .from('candidates')
-          .update({ resume_extracted_data: resumeData } as never)
-          .eq('id', candidateId);
-
-        console.log('Background AI: Resume extracted successfully', {
+        console.log('Background AI: Resume ready for analysis', {
           skills: resumeData.extracted.skills.length,
           experience: resumeData.extracted.experience.length,
         });

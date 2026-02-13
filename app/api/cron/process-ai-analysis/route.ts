@@ -12,6 +12,9 @@ import { analyzeWithClaude, parseAIAnalysisResult, parseAIMatchResult, MOCK_ANAL
 import { GENERAL_CANDIDATE_ANALYSIS_PROMPT, MATCH_CANDIDATE_TO_REQUEST_PROMPT } from '@/lib/ai/prompts';
 import { translateCandidateContent } from '@/lib/translation';
 import { Candidate, Request } from '@/lib/supabase/types';
+import { extractResumeData, formatResumeForAnalysis } from '@/lib/pdf/extractor';
+import { parsePDFFromURL } from '@/lib/pdf/parser';
+import type { ResumeData } from '@/lib/pdf/types';
 
 const USE_MOCK_AI = process.env.NODE_ENV === 'development' && !process.env.ANTHROPIC_API_KEY;
 const BATCH_SIZE = 5; // Process up to 5 candidates per cron run
@@ -93,6 +96,56 @@ async function processCandidate(candidateId: string): Promise<{ success: boolean
       why_vamos: candidate.why_vamos_translated || candidate.why_vamos,
     };
 
+    // Process resume data for AI analysis
+    let resumeFormatted: string | undefined;
+    const existingResumeData = (candidate as Candidate & { resume_extracted_data?: ResumeData | null }).resume_extracted_data;
+    const candidateResumeUrl = (candidate as Candidate & { resume_url?: string }).resume_url;
+
+    if (existingResumeData?.fullText || candidateResumeUrl) {
+      try {
+        let resumeData: ResumeData;
+
+        if (existingResumeData?.fullText && existingResumeData.extracted.skills.length > 0) {
+          // Already fully extracted
+          resumeData = existingResumeData;
+          console.log('AI Cron: Using existing resume data for candidate', candidateId);
+        } else if (existingResumeData?.fullText) {
+          // Have raw text — run AI extraction
+          console.log('AI Cron: Extracting structured data from resume text for candidate', candidateId);
+          resumeData = await extractResumeData(
+            existingResumeData.fullText,
+            existingResumeData.metadata.pages,
+            existingResumeData.metadata.size || 0
+          );
+
+          await supabase
+            .from('candidates')
+            .update({ resume_extracted_data: resumeData } as never)
+            .eq('id', candidateId);
+        } else if (candidateResumeUrl) {
+          // Parse PDF from URL
+          console.log('AI Cron: Parsing resume PDF from URL for candidate', candidateId);
+          const { text, pages, size } = await parsePDFFromURL(candidateResumeUrl);
+          resumeData = await extractResumeData(text, pages, size);
+
+          await supabase
+            .from('candidates')
+            .update({ resume_extracted_data: resumeData } as never)
+            .eq('id', candidateId);
+        } else {
+          throw new Error('No resume data available');
+        }
+
+        resumeFormatted = formatResumeForAnalysis(resumeData);
+        console.log('AI Cron: Resume ready for analysis', {
+          skills: resumeData.extracted.skills.length,
+          experience: resumeData.extracted.experience.length,
+        });
+      } catch (resumeError) {
+        console.error('AI Cron: Failed to process resume, continuing without it', resumeError);
+      }
+    }
+
     // Run AI analysis
     let analysis;
     if (USE_MOCK_AI) {
@@ -100,7 +153,7 @@ async function processCandidate(candidateId: string): Promise<{ success: boolean
       analysis = MOCK_ANALYSIS_RESULT;
     } else {
       console.log('AI Cron: Running Claude analysis for candidate', candidateId);
-      const prompt = GENERAL_CANDIDATE_ANALYSIS_PROMPT(candidateForAnalysis as Candidate);
+      const prompt = GENERAL_CANDIDATE_ANALYSIS_PROMPT(candidateForAnalysis as Candidate, resumeFormatted);
       const response = await analyzeWithClaude(prompt);
       analysis = parseAIAnalysisResult(response);
     }
