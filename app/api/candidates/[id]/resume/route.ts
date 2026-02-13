@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth';
-import { createServerClient } from '@/lib/supabase/client';
+import { createServiceRoleClient } from '@/lib/supabase/client';
 
 /**
  * GET /api/candidates/[id]/resume
@@ -21,7 +21,7 @@ export async function GET(
     }
 
     const { id } = await params;
-    const supabase = createServerClient();
+    const supabase = createServiceRoleClient();
 
     const { data: candidateData, error } = await supabase
       .from('candidates')
@@ -45,16 +45,37 @@ export async function GET(
       );
     }
 
-    const response = await fetch(candidate.resume_url);
+    // Try to extract storage path from Supabase URL and download via SDK (bypasses public access issues)
+    let pdfBuffer: ArrayBuffer;
+    const storagePrefix = '/storage/v1/object/public/resumes/';
+    const storagePath = candidate.resume_url.includes(storagePrefix)
+      ? candidate.resume_url.split(storagePrefix)[1]
+      : null;
 
-    if (!response.ok) {
-      return NextResponse.json(
-        { error: 'Failed to fetch resume' },
-        { status: 500 }
-      );
+    if (storagePath) {
+      const { data: fileData, error: downloadError } = await supabase.storage
+        .from('resumes')
+        .download(decodeURIComponent(storagePath));
+
+      if (downloadError || !fileData) {
+        console.error('Storage download error:', downloadError);
+        return NextResponse.json(
+          { error: `Failed to download resume: ${downloadError?.message || 'unknown'}` },
+          { status: 500 }
+        );
+      }
+      pdfBuffer = await fileData.arrayBuffer();
+    } else {
+      // Fallback: direct fetch for non-Supabase URLs
+      const response = await fetch(candidate.resume_url);
+      if (!response.ok) {
+        return NextResponse.json(
+          { error: 'Failed to fetch resume' },
+          { status: 500 }
+        );
+      }
+      pdfBuffer = await response.arrayBuffer();
     }
-
-    const pdfBuffer = await response.arrayBuffer();
 
     return new NextResponse(pdfBuffer, {
       headers: {
