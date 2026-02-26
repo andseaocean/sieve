@@ -137,6 +137,12 @@ async function processCandidate(candidateId: string): Promise<{ success: boolean
       } as never)
       .eq('id', candidateId);
 
+    // Update pipeline_stage to analyzed
+    await supabase
+      .from('candidates')
+      .update({ pipeline_stage: 'analyzed' } as never)
+      .eq('id', candidateId);
+
     console.log('AI Cron: Analysis complete for candidate', candidateId, 'Score:', analysis.score);
 
     // Match to all active requests
@@ -196,6 +202,47 @@ async function processCandidate(candidateId: string): Promise<{ success: boolean
               status: 'new',
             } as never);
         }
+      }
+    }
+
+    // Automation trigger: queue outreach for high-scoring candidates
+    if (analysis.score >= 7) {
+      try {
+        const { addToAutomationQueue } = await import('@/lib/automation/queue');
+
+        // Find matches with approved outreach templates
+        const { data: matchesData } = await supabase
+          .from('candidate_request_matches')
+          .select('request_id')
+          .eq('candidate_id', candidateId)
+          .order('match_score', { ascending: false });
+
+        const matches = (matchesData || []) as { request_id: string }[];
+
+        for (const match of matches) {
+          // Check if request has approved outreach template
+          const { data: reqCheck } = await supabase
+            .from('requests')
+            .select('id, outreach_template_approved, status')
+            .eq('id', match.request_id)
+            .eq('outreach_template_approved', true)
+            .eq('status', 'active')
+            .single();
+
+          if (reqCheck) {
+            await addToAutomationQueue({
+              supabase,
+              actionType: 'send_outreach',
+              candidateId,
+              requestId: match.request_id,
+            });
+            console.log(`AI Cron: Queued outreach for candidate ${candidateId}, request ${match.request_id}`);
+            break; // Only queue for best match
+          }
+        }
+      } catch (automationError) {
+        console.error('AI Cron: Error queueing outreach automation', automationError);
+        // Non-critical — don't fail the whole analysis
       }
     }
 

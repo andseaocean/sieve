@@ -358,9 +358,98 @@ async function sendTestTaskDirectly(
 async function handleCallbackQuery(callbackQuery: TelegramUpdate['callback_query']) {
   if (!callbackQuery?.data) return;
 
+  const data = callbackQuery.data;
+  const chatId = callbackQuery.message?.chat?.id;
+  const messageId = callbackQuery.message?.message_id;
+
+  const supabase = createServiceRoleClient();
+
+  // Handle outreach "Yes" button
+  if (data.startsWith('outreach_yes:')) {
+    const [, candidateId, requestId] = data.split(':');
+
+    await answerCallbackQuery(callbackQuery.id, 'Дякуємо!');
+
+    // Remove inline buttons
+    if (chatId && messageId) {
+      await editTelegramReplyMarkup(chatId, messageId);
+    }
+
+    // Send confirmation
+    if (chatId) {
+      await sendTelegramMessage(chatId, 'Чудово! Надсилаємо вам анкету — займе близько 20-30 хвилин.');
+    }
+
+    // Update candidate
+    await supabase
+      .from('candidates')
+      .update({
+        candidate_response: 'positive',
+      } as never)
+      .eq('id', candidateId);
+
+    // Log response
+    await supabase.from('candidate_conversations').insert({
+      candidate_id: candidateId,
+      direction: 'inbound',
+      message_type: 'candidate_response',
+      content: 'Натиснув "Так, цікаво дізнатись більше"',
+      metadata: { callback_data: data, automated_outreach: true },
+    } as never);
+
+    // Queue questionnaire sending
+    const { addToAutomationQueue } = await import('@/lib/automation/queue');
+    await addToAutomationQueue({
+      supabase,
+      actionType: 'send_questionnaire',
+      candidateId,
+      requestId,
+    });
+
+    return;
+  }
+
+  // Handle outreach "No" button
+  if (data.startsWith('outreach_no:')) {
+    const [, candidateId] = data.split(':');
+
+    await answerCallbackQuery(callbackQuery.id, 'Зрозуміло, дякуємо!');
+
+    // Remove inline buttons
+    if (chatId && messageId) {
+      await editTelegramReplyMarkup(chatId, messageId);
+    }
+
+    // Polite response
+    if (chatId) {
+      await sendTelegramMessage(chatId, 'Зрозуміло, дякуємо за відповідь! Успіхів вам!');
+    }
+
+    // Update candidate
+    await supabase
+      .from('candidates')
+      .update({
+        pipeline_stage: 'outreach_declined',
+        candidate_response: 'negative',
+        outreach_status: 'declined',
+      } as never)
+      .eq('id', candidateId);
+
+    // Log
+    await supabase.from('candidate_conversations').insert({
+      candidate_id: candidateId,
+      direction: 'inbound',
+      message_type: 'candidate_response',
+      content: 'Натиснув "Дякую, не зараз"',
+      metadata: { callback_data: data, automated_outreach: true },
+    } as never);
+
+    return;
+  }
+
+  // Handle feedback buttons (existing logic)
   await answerCallbackQuery(callbackQuery.id, 'Дякуємо за фідбек!');
 
-  const data = callbackQuery.data;
   const feedbackMatch = data.match(/^feedback_(easy|ok|hard|very_hard)_(.+)$/);
 
   if (!feedbackMatch) return;
@@ -376,19 +465,32 @@ async function handleCallbackQuery(callbackQuery: TelegramUpdate['callback_query
   const candidateId = feedbackMatch[2];
   const feedbackText = feedbackMap[feedbackType] || feedbackType;
 
-  const supabase = createServiceRoleClient();
-
   await supabase
     .from('candidates')
     .update({ test_task_candidate_feedback: feedbackText } as never)
     .eq('id', candidateId);
 
-  if (callbackQuery.message?.chat?.id) {
+  if (chatId) {
     await sendTelegramMessage(
-      callbackQuery.message.chat.id,
+      chatId,
       `Дякуємо за фідбек! Ми перевіримо ваше тестове найближчим часом і зв'яжемося з вами.`
     );
   }
+}
+
+async function editTelegramReplyMarkup(chatId: number, messageId: number) {
+  await fetch(
+    `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/editMessageReplyMarkup`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        message_id: messageId,
+        reply_markup: { inline_keyboard: [] },
+      }),
+    }
+  );
 }
 
 async function generateAnswerToQuestions(

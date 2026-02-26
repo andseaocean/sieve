@@ -125,7 +125,29 @@ async function evaluateQuestionnaireAsync(
       } as never)
       .eq('id', responseId);
 
+    // Update pipeline_stage
+    await supabase
+      .from('candidates')
+      .update({ pipeline_stage: 'questionnaire_done' } as never)
+      .eq('id', candidateId);
+
     console.log(`Questionnaire evaluated for candidate ${candidateId}: ${result.score}/10`);
+
+    // Automation trigger: queue test task for high-scoring questionnaires
+    if (result.score >= 7) {
+      try {
+        const { addToAutomationQueue } = await import('@/lib/automation/queue');
+        await addToAutomationQueue({
+          supabase,
+          actionType: 'send_test_task',
+          candidateId,
+          requestId,
+        });
+        console.log(`Automation: Queued test task for candidate ${candidateId} (questionnaire score: ${result.score})`);
+      } catch (automationError) {
+        console.error('Automation: Error queueing test task after questionnaire', automationError);
+      }
+    }
   } catch (error) {
     console.error('Error in async questionnaire evaluation:', error);
 

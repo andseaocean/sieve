@@ -9,7 +9,9 @@
 
 Sieve (package name: `hiring-system`) is an AI-powered recruitment platform for **Vamos** (AI-first tech company). It automates candidate screening, matching, and outreach. Primary UI language is Ukrainian.
 
-**Candidate flow:** Application/Sourcing -> AI Analysis (1-10 score) -> Matching to requests -> Outreach -> **Soft Skills Questionnaire** -> Test Task -> Evaluation -> Interview
+**Candidate flow:** Application/Sourcing -> AI Analysis (1-10 score) -> Matching to requests -> **Automated Outreach** (Telegram inline buttons) -> **Soft Skills Questionnaire** (auto-sent on positive response) -> **Test Task** (auto-sent on questionnaire score ≥ 7) -> Evaluation -> **Final Decision** (invite/reject by manager) -> Interview/Rejection
+
+**Pipeline stages:** `new` → `analyzed` → `outreach_sent` → `questionnaire_sent` → `questionnaire_done` → `test_sent` → `test_done` → `interview` | `rejected` | `hired` | `outreach_declined`
 
 ## Tech Stack
 
@@ -49,6 +51,8 @@ components/
   dashboard/                      # Header, Sidebar
     test-task/                    # TestTaskTimeline (timeline, submission preview, decision panel)
     questionnaire/                # QuestionnaireSection (candidate detail integration)
+    pipeline-timeline.tsx         # Visual pipeline stage progress (dots + connector lines)
+    final-decision-panel.tsx      # Manager invite/reject decision UI
   settings/                       # Admin settings components
     questionnaire-settings.tsx    # Competency/question bank management
     competency-card.tsx           # Competency card with questions list
@@ -74,11 +78,14 @@ lib/
   telegram/
     bot.ts                        # Bot init + polling mode
     types.ts                      # Telegram types
+  automation/
+    queue.ts                      # Automation queue utilities (add, fetch, mark, cancel)
+    handlers.ts                   # 5 automation handlers (outreach, questionnaire, test, invite, rejection)
   outreach/
     scheduler.ts                  # Schedule messages
     processor.ts                  # Process outreach queue
     email-service.ts              # Resend integration
-    message-generator.ts          # AI message generation
+    message-generator.ts          # AI message generation + generatePersonalizedOutreach()
     schedule-outreach.ts          # Orchestration
   sourcing/
     evaluator.ts                  # Cold candidate evaluation
@@ -99,7 +106,7 @@ lib/
   language-utils.ts               # Language detection
   utils.ts                        # General utilities
 
-supabase/migrations/              # SQL migration files (002-010)
+supabase/migrations/              # SQL migration files (002-012)
 public/bookmarklet/               # Bookmarklet source (vamos-quick-check.js)
 scripts/start-bot.ts              # Telegram bot start script
 middleware.ts                     # Auth middleware (protects /dashboard/*)
@@ -118,6 +125,7 @@ middleware.ts                     # Auth middleware (protects /dashboard/*)
 - priority, status, qualification_questions
 - test_task_url, test_task_deadline_days, test_task_message, test_task_evaluation_criteria
 - job_description (AI-generated)
+- outreach_template (TEXT), outreach_template_approved (BOOLEAN, default false)
 - questionnaire_competency_ids (UUID[]), questionnaire_question_ids (UUID[]), questionnaire_custom_questions (JSONB)
 
 **candidates** — Applicants (warm + cold)
@@ -129,11 +137,14 @@ middleware.ts                     # Auth middleware (protects /dashboard/*)
 - Outreach: outreach_status, outreach_sent_at, candidate_response, outreach_message
 - Test task: test_task_status, test_task_sent_at, test_task_original_deadline, test_task_current_deadline, test_task_extensions_count, test_task_submitted_at, test_task_submission_text, test_task_candidate_feedback, test_task_ai_score, test_task_ai_evaluation, test_task_late_by_hours
 - Questionnaire: questionnaire_status (sent|in_progress|completed|expired|skipped)
+- Pipeline: pipeline_stage (new|analyzed|outreach_sent|questionnaire_sent|questionnaire_done|test_sent|test_done|interview|rejected|hired|outreach_declined)
 
 **candidate_request_matches** — Many-to-many candidates<->requests
 - candidate_id, request_id, match_score (0-100), match_explanation
 - status: new|reviewed|interview|hired|rejected|on_hold
 - manager_notes
+- outreach_telegram_message_id (BIGINT) — Telegram message ID for inline button editing
+- final_decision (invite|reject), final_decision_at, final_decision_by (manager_id FK)
 
 **comments** — Manager comments on candidates
 - candidate_id, manager_id, text, created_at
@@ -151,6 +162,12 @@ middleware.ts                     # Auth middleware (protects /dashboard/*)
 
 **ai_analysis_queue** — Background AI processing queue
 - candidate_id, status (pending|processing|completed|failed), error_message, retry_count
+
+**automation_queue** — Pipeline automation job queue
+- candidate_id, request_id, action_type (send_outreach|send_questionnaire|send_test_task|send_invite|send_rejection)
+- status (pending|processing|completed|failed), scheduled_for (TIMESTAMPTZ), processed_at
+- error_message, retry_count, metadata (JSONB)
+- Indexes: status+scheduled_for, candidate_id+action_type (for duplicate detection)
 
 ### Soft Skills Questionnaire Tables
 
@@ -174,6 +191,8 @@ middleware.ts                     # Auth middleware (protects /dashboard/*)
 - `POST /api/candidates/[id]/analyze-background` — Queue AI analysis
 - `GET /api/candidates/[id]/resume` — PDF resume proxy/viewer
 - `GET/POST /api/candidates/[id]/comments` — Comments
+- `GET /api/candidates/[id]/match-info` — Best match request_id + final_decision
+- `POST /api/candidates/[id]/final-decision` — Manager invite/reject decision (queues automation)
 
 ### Requests
 - `GET/POST /api/requests` — List / Create
@@ -215,12 +234,13 @@ middleware.ts                     # Auth middleware (protects /dashboard/*)
 - `GET /api/questionnaire/response/[candidate_id]` — Get questionnaire results (protected)
 
 ### Telegram
-- `POST /api/telegram/webhook` — Webhook handler (classifies responses, handles commands)
+- `POST /api/telegram/webhook` — Webhook handler (classifies responses, handles commands, processes outreach callback_query inline buttons)
 
 ### Cron (daily at 10:00 UTC, secured by CRON_SECRET)
 - `GET /api/cron/process-outreach` — Send scheduled outreach (batch of 10)
-- `GET /api/cron/process-ai-analysis` — Process AI analysis queue
+- `GET /api/cron/process-ai-analysis` — Process AI analysis queue (also triggers outreach automation for score ≥ 7)
 - `GET /api/cron/process-test-tasks` — Test task deadlines & reminders
+- `GET /api/cron/process-automation` — Process automation_queue jobs (outreach, questionnaire, test task, invite, rejection)
 
 ### Other
 - `GET /api/bookmarklet` — Generate bookmarklet code
@@ -237,7 +257,34 @@ middleware.ts                     # Auth middleware (protects /dashboard/*)
 - **Warm:** Applied via web form or Telegram bot
 - **Cold:** Sourced via bookmarklet from LinkedIn, GitHub, DOU, Djinni, Work.ua
 
-### Outreach Flow
+### Automated Pipeline Flow (automation_queue)
+The system automates the entire candidate funnel via `automation_queue` jobs processed by cron:
+
+1. **AI Analysis** (cron: process-ai-analysis): candidate gets `pipeline_stage: 'analyzed'`
+2. **Auto-outreach** (score ≥ 7 + request has `outreach_template_approved`): AI personalizes outreach template → sends via Telegram with inline "Так, цікаво!" / "Ні, дякую" buttons → `pipeline_stage: 'outreach_sent'`
+3. **Candidate responds** (Telegram callback_query): "Yes" → queues `send_questionnaire`; "No" → `pipeline_stage: 'outreach_declined'`
+4. **Questionnaire auto-sent**: uses request's configured competencies/questions → sends link via Telegram → `pipeline_stage: 'questionnaire_sent'`
+5. **Questionnaire completed** (score ≥ 7): queues `send_test_task` → `pipeline_stage: 'test_sent'`
+6. **Test task evaluated**: manager sees results → clicks "Запросити на інтерв'ю" or "Відхилити"
+7. **Final decision**: `send_invite` queued immediately; `send_rejection` queued with 24h delay (more humane)
+
+**Key files:**
+- `lib/automation/queue.ts` — Queue utilities (addToAutomationQueue, fetchPendingJobs, markJob*)
+- `lib/automation/handlers.ts` — 5 handlers (outreach, questionnaire, test_task, invite, rejection) + executeAutomationJob dispatcher
+- `lib/ai/prompts.ts` — OUTREACH_PERSONALIZATION_PROMPT
+- `lib/outreach/message-generator.ts` — generatePersonalizedOutreach()
+- `app/api/cron/process-automation/route.ts` — Cron job processing
+- `app/api/candidates/[id]/final-decision/route.ts` — Manager decision endpoint
+- `components/dashboard/final-decision-panel.tsx` — Invite/reject UI
+- `components/dashboard/pipeline-timeline.tsx` — Visual pipeline progress
+
+**Automation triggers:**
+- AI analysis cron → queues `send_outreach` (if score ≥ 7 + approved template)
+- Telegram outreach callback "Yes" → queues `send_questionnaire`
+- Questionnaire submit → queues `send_test_task` (if questionnaire score ≥ 7)
+- Manager final decision → queues `send_invite` or `send_rejection` (24h delay)
+
+### Manual Outreach Flow (legacy)
 1. Manager selects candidate + request
 2. AI generates personalized intro message
 3. Manager reviews/edits message
@@ -283,6 +330,7 @@ middleware.ts                     # Auth middleware (protects /dashboard/*)
 - Stores `telegram_chat_id` on first message from candidate (required for outbound messaging)
 - Incoming messages classified as: positive, negative, question, test_submission, deadline_request
 - On `positive` response: sends test task immediately (bypasses cron queue)
+- **Outreach callback_query handling:** `outreach_yes:{matchId}` → removes inline buttons, queues questionnaire; `outreach_no:{matchId}` → removes buttons, updates pipeline_stage to outreach_declined
 - Auto-responds to questions using AI
 - Logs all conversations to candidate_conversations table
 
@@ -344,7 +392,7 @@ Ukrainian (primary), English, Turkish, Spanish — detection via `lib/language-u
 - **Supabase client:** Use `createClient()` from `lib/supabase/client.ts` for regular requests; use service role client (from `SUPABASE_SERVICE_ROLE_KEY`) in cron jobs and webhook handler to bypass RLS.
 - **AI calls:** Text-only via `analyzeWithClaude()`, with PDF via `analyzeWithClaudeAndPDF()` in `lib/ai/claude.ts`. Prompts live in `lib/ai/prompts.ts`, outreach/decision prompts in `lib/ai/outreach-prompts.ts`.
 - **DB types:** `lib/supabase/types.ts` defines all table types — update when schema changes. Use `as never` cast for Supabase insert/update objects when TypeScript complains about strict typing.
-- **Migrations:** SQL files in `supabase/migrations/`, numbered sequentially (002-011).
+- **Migrations:** SQL files in `supabase/migrations/`, numbered sequentially (002-012).
 - **Components:** shadcn/ui in `components/ui/`, feature components grouped by domain.
 - **Vercel Hobby plan:** Cron jobs limited to once per day (`0 10 * * *`). Critical time-sensitive operations (like test task sending) should be handled immediately in webhook/API handlers, not via cron.
 

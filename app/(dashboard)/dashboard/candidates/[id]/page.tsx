@@ -40,6 +40,9 @@ import {
   Loader2,
 } from 'lucide-react';
 import { ResumeViewer } from '@/components/candidates/ResumeViewer';
+import { FinalDecisionPanel } from '@/components/dashboard/final-decision-panel';
+import { PipelineTimeline } from '@/components/dashboard/pipeline-timeline';
+import type { PipelineStage } from '@/lib/supabase/types';
 import type { ResumeData } from '@/lib/pdf/types';
 
 interface Comment {
@@ -190,6 +193,15 @@ export default function CandidateDetailsPage() {
               {isAnalyzing ? 'Аналіз...' : 'Запустити AI аналіз'}
             </Button>
           </div>
+
+          {/* Pipeline Timeline */}
+          {candidate.pipeline_stage && (
+            <Card>
+              <CardContent className="pt-4 pb-2">
+                <PipelineTimeline currentStage={candidate.pipeline_stage as PipelineStage} />
+              </CardContent>
+            </Card>
+          )}
 
           {/* Main info card */}
           <Card>
@@ -503,6 +515,13 @@ export default function CandidateDetailsPage() {
 
           {/* Test Task Timeline */}
           <TestTaskTimeline candidate={candidate} />
+
+          {/* Final Decision Panel */}
+          <FinalDecisionPanel
+            candidateId={candidateId}
+            testTaskStatus={candidate.test_task_status}
+            testTaskAiScore={candidate.test_task_ai_score}
+          />
 
           {/* Comments section */}
           <CommentSection

@@ -152,6 +152,47 @@ Focus on opportunities and growth, not just requirements.
 Return ONLY the job posting text, no additional comments or explanations.
 `;
 
+// Outreach personalization based on manager template
+export const OUTREACH_PERSONALIZATION_PROMPT = (
+  template: string,
+  candidate: Candidate,
+  request: Request
+) => `
+Ти — дружній HR-спеціаліст компанії Vamos (AI-first tech company).
+Персоналізуй привітальне повідомлення для кандидата УКРАЇНСЬКОЮ мовою, використовуючи шаблон менеджера як основу.
+
+=== ШАБЛОН МЕНЕДЖЕРА ===
+${template}
+
+=== ДАНІ КАНДИДАТА ===
+Ім'я: ${candidate.first_name}
+Про себе: ${candidate.about_text || 'Не вказано'}
+Навички: ${candidate.key_skills?.join(', ') || 'Не вказано'}
+Чому Vamos: ${candidate.why_vamos || 'Не вказано'}
+AI оцінка: ${candidate.ai_score || 'N/A'}/10
+
+=== ВАКАНСІЯ ===
+Назва: ${request.title}
+Опис: ${request.description || 'Не вказано'}
+
+=== ПРАВИЛА ===
+1. Використовуй тон і структуру шаблону як основу
+2. Персоналізуй під конкретного кандидата — згадай 1-2 конкретні речі з профілю
+3. Згадай назву вакансії природно
+4. Закінчуй нейтрально, БЕЗ call-to-action (кнопки будуть додані окремо)
+5. НЕ підписуй повідомлення
+6. Звертайся на "ти"
+
+=== ЗАБОРОНЕНО ===
+- Більше 120 слів
+- Емодзі
+- Кліше типу "Ваша кандидатура нас зацікавила"
+- Call-to-action в кінці (ніяких "Чи зацікавлені?", "Дай знати" тощо)
+- Обіцяти конкретні умови або зарплату
+
+Напиши ТІЛЬКИ текст повідомлення без лапок і пояснень.
+`.trim();
+
 // General candidate analysis without a specific request
 // hasPDF: indicates whether a PDF document is attached to the message
 export const GENERAL_CANDIDATE_ANALYSIS_PROMPT = (candidate: Candidate, resumeFormatted?: string, hasPDF?: boolean) => `

@@ -21,7 +21,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Request, SoftSkillCompetency, QuestionnaireQuestion } from '@/lib/supabase/types';
 import { JobDescriptionGenerator } from '@/components/requests/job-description-generator';
-import { Loader2, ChevronDown, ChevronRight, Plus, X } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Loader2, ChevronDown, ChevronRight, Plus, X, AlertTriangle } from 'lucide-react';
 
 interface CompetencyWithQuestions extends SoftSkillCompetency {
   questions: QuestionnaireQuestion[];
@@ -45,6 +46,8 @@ const requestSchema = z.object({
   test_task_message: z.string().optional(),
   test_task_evaluation_criteria: z.string().optional(),
   job_description: z.string().optional(),
+  outreach_template: z.string().optional(),
+  outreach_template_approved: z.boolean().optional(),
 });
 
 type RequestFormData = z.infer<typeof requestSchema>;
@@ -223,6 +226,8 @@ export function RequestForm({ request, isEdit = false }: RequestFormProps) {
       test_task_message: request?.test_task_message || '',
       test_task_evaluation_criteria: request?.test_task_evaluation_criteria || '',
       job_description: request?.job_description || '',
+      outreach_template: request?.outreach_template || '',
+      outreach_template_approved: request?.outreach_template_approved || false,
     },
   });
 
@@ -240,6 +245,8 @@ export function RequestForm({ request, isEdit = false }: RequestFormProps) {
         test_task_message: data.test_task_message || null,
         test_task_evaluation_criteria: data.test_task_evaluation_criteria || null,
         job_description: data.job_description || null,
+        outreach_template: data.outreach_template || null,
+        outreach_template_approved: data.outreach_template_approved || false,
         questionnaire_competency_ids: randomCompetencyIds,
         questionnaire_question_ids: selectedQuestionIds,
         questionnaire_custom_questions: [],
@@ -466,6 +473,49 @@ export function RequestForm({ request, isEdit = false }: RequestFormProps) {
               </div>
             )}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Outreach Template */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Привітальне повідомлення для outreach</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            AI персоналізує це повідомлення під кожного кандидата. Без затвердження шаблону автоматичний outreach не запуститься.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="outreach_template">Шаблон повідомлення</Label>
+            <Textarea
+              id="outreach_template"
+              rows={6}
+              placeholder={`Привіт! Ми шукаємо {роль} у Vamos — AI-first компанію. Звернули увагу на твій досвід з {навичка}. Хочемо розповісти більше і дізнатись про тебе.`}
+              className="font-mono text-sm"
+              {...register('outreach_template')}
+            />
+            <p className="text-xs text-muted-foreground">
+              Вкажіть тон, ключові меседжі та що згадати про вакансію. AI використає це як основу для персоналізації.
+            </p>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="outreach_template_approved"
+              checked={watch('outreach_template_approved') || false}
+              onCheckedChange={(checked) => setValue('outreach_template_approved', checked === true)}
+            />
+            <Label htmlFor="outreach_template_approved" className="text-sm font-normal cursor-pointer">
+              Я підтверджую цей шаблон для автоматичного outreach
+            </Label>
+          </div>
+
+          {!watch('outreach_template_approved') && watch('outreach_template') && (
+            <div className="flex items-center gap-2 text-sm text-amber-600 bg-amber-50 rounded-md p-3">
+              <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+              <span>Автоматичний outreach не запуститься, поки шаблон не затверджено.</span>
+            </div>
+          )}
         </CardContent>
       </Card>
 

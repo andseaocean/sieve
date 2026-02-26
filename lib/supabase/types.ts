@@ -17,6 +17,9 @@ export type TestTaskStatus = 'not_sent' | 'scheduled' | 'sent' | 'submitted_on_t
 export type ConversationDirection = 'outbound' | 'inbound';
 export type ConversationMessageType = 'outreach' | 'test_task' | 'candidate_response' | 'ai_reply' | 'deadline_extension_request' | 'deadline_extension_granted' | 'deadline_extension_denied' | 'test_task_decision' | 'questionnaire_sent' | 'questionnaire_submitted';
 export type QuestionnaireStatus = 'sent' | 'in_progress' | 'completed' | 'expired' | 'skipped';
+export type PipelineStage = 'new' | 'analyzed' | 'outreach_sent' | 'outreach_declined' | 'questionnaire_sent' | 'questionnaire_done' | 'test_sent' | 'test_done' | 'interview' | 'rejected' | 'hired';
+export type AutomationActionType = 'send_outreach' | 'send_questionnaire' | 'send_test_task' | 'send_rejection' | 'send_invite';
+export type AutomationQueueStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
 
 export type Database = {
   public: {
@@ -74,6 +77,8 @@ export type Database = {
           questionnaire_competency_ids: string[];
           questionnaire_question_ids: string[];
           questionnaire_custom_questions: Json;
+          outreach_template: string | null;
+          outreach_template_approved: boolean;
         };
         Insert: {
           id?: string;
@@ -101,6 +106,8 @@ export type Database = {
           questionnaire_competency_ids?: string[];
           questionnaire_question_ids?: string[];
           questionnaire_custom_questions?: Json;
+          outreach_template?: string | null;
+          outreach_template_approved?: boolean;
         };
         Update: {
           id?: string;
@@ -128,6 +135,8 @@ export type Database = {
           questionnaire_competency_ids?: string[];
           questionnaire_question_ids?: string[];
           questionnaire_custom_questions?: Json;
+          outreach_template?: string | null;
+          outreach_template_approved?: boolean;
         };
       };
       candidates: {
@@ -188,6 +197,7 @@ export type Database = {
           test_task_late_by_hours: number | null;
           resume_extracted_data: ResumeData | null;
           questionnaire_status: QuestionnaireStatus | null;
+          pipeline_stage: PipelineStage;
         };
         Insert: {
           id?: string;
@@ -246,6 +256,7 @@ export type Database = {
           test_task_late_by_hours?: number | null;
           resume_extracted_data?: ResumeData | null;
           questionnaire_status?: QuestionnaireStatus | null;
+          pipeline_stage?: PipelineStage;
         };
         Update: {
           id?: string;
@@ -304,6 +315,7 @@ export type Database = {
           test_task_late_by_hours?: number | null;
           resume_extracted_data?: ResumeData | null;
           questionnaire_status?: QuestionnaireStatus | null;
+          pipeline_stage?: PipelineStage;
         };
       };
       candidate_conversations: {
@@ -349,6 +361,10 @@ export type Database = {
           manager_notes: string | null;
           created_at: string;
           updated_at: string;
+          outreach_telegram_message_id: number | null;
+          final_decision: 'invite' | 'reject' | null;
+          final_decision_at: string | null;
+          final_decision_by: string | null;
         };
         Insert: {
           id?: string;
@@ -360,6 +376,10 @@ export type Database = {
           manager_notes?: string | null;
           created_at?: string;
           updated_at?: string;
+          outreach_telegram_message_id?: number | null;
+          final_decision?: 'invite' | 'reject' | null;
+          final_decision_at?: string | null;
+          final_decision_by?: string | null;
         };
         Update: {
           id?: string;
@@ -371,6 +391,10 @@ export type Database = {
           manager_notes?: string | null;
           created_at?: string;
           updated_at?: string;
+          outreach_telegram_message_id?: number | null;
+          final_decision?: 'invite' | 'reject' | null;
+          final_decision_at?: string | null;
+          final_decision_by?: string | null;
         };
       };
       comments: {
@@ -604,6 +628,47 @@ export type Database = {
           created_at?: string;
         };
       };
+      automation_queue: {
+        Row: {
+          id: string;
+          action_type: AutomationActionType;
+          candidate_id: string;
+          request_id: string;
+          scheduled_for: string;
+          status: AutomationQueueStatus;
+          payload: Json;
+          error_message: string | null;
+          retry_count: number;
+          created_at: string;
+          executed_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          action_type: AutomationActionType;
+          candidate_id: string;
+          request_id: string;
+          scheduled_for: string;
+          status?: AutomationQueueStatus;
+          payload?: Json;
+          error_message?: string | null;
+          retry_count?: number;
+          created_at?: string;
+          executed_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          action_type?: AutomationActionType;
+          candidate_id?: string;
+          request_id?: string;
+          scheduled_for?: string;
+          status?: AutomationQueueStatus;
+          payload?: Json;
+          error_message?: string | null;
+          retry_count?: number;
+          created_at?: string;
+          executed_at?: string | null;
+        };
+      };
     };
     Views: {
       [_ in never]: never;
@@ -688,3 +753,8 @@ export interface QuestionnaireAIEvaluation {
     comment: string;
   }>;
 }
+
+// Automation queue types
+export type AutomationQueue = Database['public']['Tables']['automation_queue']['Row'];
+export type AutomationQueueInsert = Database['public']['Tables']['automation_queue']['Insert'];
+export type AutomationQueueUpdate = Database['public']['Tables']['automation_queue']['Update'];

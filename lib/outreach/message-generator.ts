@@ -14,6 +14,7 @@ import {
   MOCK_INTRO_MESSAGE,
   MOCK_TEST_TASK_MESSAGE,
 } from '@/lib/ai/outreach-prompts';
+import { OUTREACH_PERSONALIZATION_PROMPT } from '@/lib/ai/prompts';
 
 const USE_MOCK_AI = process.env.NODE_ENV === 'development' && !process.env.ANTHROPIC_API_KEY;
 
@@ -89,6 +90,36 @@ export async function generateTestTaskMessage(
   } catch (error) {
     console.error('Error generating test task message:', error);
     return MOCK_TEST_TASK_MESSAGE(candidate, request, notionUrl);
+  }
+}
+
+/**
+ * Generate personalized outreach message from manager's template
+ * Used by automation pipeline for template-based outreach
+ */
+export async function generatePersonalizedOutreach(
+  template: string,
+  candidate: Candidate,
+  request: Request
+): Promise<string> {
+  if (USE_MOCK_AI) {
+    return `Привіт, ${candidate.first_name}!\n\nМи шукаємо ${request.title} у Vamos. Звернули увагу на твій профіль і хотіли б розповісти більше про можливість.`;
+  }
+
+  try {
+    const prompt = OUTREACH_PERSONALIZATION_PROMPT(template, candidate, request);
+    const response = await analyzeWithClaude(prompt);
+    const cleaned = cleanAIResponse(response);
+
+    if (!cleaned || cleaned.length < 30) {
+      console.warn('Personalized outreach too short, using template fallback');
+      return `Привіт, ${candidate.first_name}!\n\n${template}`;
+    }
+
+    return cleaned;
+  } catch (error) {
+    console.error('Error generating personalized outreach:', error);
+    return `Привіт, ${candidate.first_name}!\n\n${template}`;
   }
 }
 

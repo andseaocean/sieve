@@ -14,6 +14,35 @@ import {
   getScoreColor,
 } from '@/lib/utils';
 import { Eye, Mail, Phone, Linkedin, Github, ExternalLink } from 'lucide-react';
+import type { PipelineStage } from '@/lib/supabase/types';
+
+const pipelineStageLabels: Record<PipelineStage, string> = {
+  new: 'Новий',
+  analyzed: 'Проаналізовано',
+  outreach_sent: 'Outreach',
+  outreach_declined: 'Відмовився',
+  questionnaire_sent: 'Анкета',
+  questionnaire_done: 'Анкета готова',
+  test_sent: 'Тестове',
+  test_done: 'Тестове здано',
+  interview: 'Інтерв\'ю',
+  rejected: 'Відхилено',
+  hired: 'Найнято',
+};
+
+const pipelineStageColors: Record<PipelineStage, string> = {
+  new: 'bg-gray-100 text-gray-700 border-gray-300',
+  analyzed: 'bg-blue-50 text-blue-700 border-blue-300',
+  outreach_sent: 'bg-indigo-50 text-indigo-700 border-indigo-300',
+  outreach_declined: 'bg-red-50 text-red-600 border-red-300',
+  questionnaire_sent: 'bg-violet-50 text-violet-700 border-violet-300',
+  questionnaire_done: 'bg-purple-50 text-purple-700 border-purple-300',
+  test_sent: 'bg-orange-50 text-orange-700 border-orange-300',
+  test_done: 'bg-amber-50 text-amber-700 border-amber-300',
+  interview: 'bg-green-50 text-green-700 border-green-300',
+  rejected: 'bg-red-50 text-red-600 border-red-300',
+  hired: 'bg-emerald-50 text-emerald-700 border-emerald-300',
+};
 
 const platformInfo: Record<string, { name: string; color: string }> = {
   linkedin: { name: 'LinkedIn', color: 'bg-blue-100 text-blue-800 border-blue-300' },
@@ -64,8 +93,13 @@ export function CandidateCard({ candidate }: CandidateCardProps) {
       </CardHeader>
 
       <CardContent className="space-y-3">
-        {/* Category and Platform badges */}
+        {/* Category, Pipeline Stage, and Platform badges */}
         <div className="flex flex-wrap gap-2">
+          {candidate.pipeline_stage && candidate.pipeline_stage !== 'new' && (
+            <Badge variant="outline" className={pipelineStageColors[candidate.pipeline_stage] || ''}>
+              {pipelineStageLabels[candidate.pipeline_stage] || candidate.pipeline_stage}
+            </Badge>
+          )}
           {candidate.ai_category && (
             <Badge variant="outline" className={categoryColors[candidate.ai_category]}>
               {categoryLabels[candidate.ai_category]}
