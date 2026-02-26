@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import {
   Select,
   SelectContent,
@@ -18,9 +19,13 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Request } from '@/lib/supabase/types';
+import { Request, SoftSkillCompetency, QuestionnaireQuestion } from '@/lib/supabase/types';
 import { JobDescriptionGenerator } from '@/components/requests/job-description-generator';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ChevronDown, ChevronRight, Plus, X } from 'lucide-react';
+
+interface CompetencyWithQuestions extends SoftSkillCompetency {
+  questions: QuestionnaireQuestion[];
+}
 
 const requestSchema = z.object({
   title: z.string().min(1, 'Назва обов\'язкова'),
@@ -52,6 +57,43 @@ interface RequestFormProps {
 export function RequestForm({ request, isEdit = false }: RequestFormProps) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [competencies, setCompetencies] = useState<CompetencyWithQuestions[]>([]);
+  const [selectedCompetencyIds, setSelectedCompetencyIds] = useState<string[]>(
+    (request as Record<string, unknown>)?.questionnaire_competency_ids as string[] || []
+  );
+  const [customQuestions, setCustomQuestions] = useState<Array<{ text: string }>>(
+    ((request as Record<string, unknown>)?.questionnaire_custom_questions as Array<{ text: string }>) || []
+  );
+  const [newCustomQuestion, setNewCustomQuestion] = useState('');
+  const [showQuestionPreview, setShowQuestionPreview] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/questionnaire/competencies')
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setCompetencies(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, []);
+
+  const toggleCompetency = (id: string) => {
+    setSelectedCompetencyIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
+  const addCustomQuestion = () => {
+    if (!newCustomQuestion.trim()) return;
+    setCustomQuestions(prev => [...prev, { text: newCustomQuestion.trim() }]);
+    setNewCustomQuestion('');
+  };
+
+  const removeCustomQuestion = (index: number) => {
+    setCustomQuestions(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const selectedQuestionCount = competencies
+    .filter(c => selectedCompetencyIds.includes(c.id))
+    .reduce((sum, c) => sum + c.questions.filter(q => q.is_active).length, 0)
+    + customQuestions.length;
 
   const {
     register,
@@ -96,6 +138,8 @@ export function RequestForm({ request, isEdit = false }: RequestFormProps) {
         test_task_message: data.test_task_message || null,
         test_task_evaluation_criteria: data.test_task_evaluation_criteria || null,
         job_description: data.job_description || null,
+        questionnaire_competency_ids: selectedCompetencyIds,
+        questionnaire_custom_questions: customQuestions,
       };
 
       const response = await fetch(url, {
@@ -383,6 +427,105 @@ export function RequestForm({ request, isEdit = false }: RequestFormProps) {
             <p className="text-xs text-muted-foreground">
               AI використає ці критерії для оцінки відповідей від 1 до 10. Будьте конкретними та чіткими.
             </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Soft Skills Questionnaire */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Soft Skills Оцінка</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Оберіть компетенції для перевірки. Кандидат отримає анкету з питаннями обраних компетенцій.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {competencies.length === 0 ? (
+            <p className="text-sm text-muted-foreground italic">
+              Компетенції ще не створені. Додайте їх у розділі &quot;Soft Skills&quot; меню.
+            </p>
+          ) : (
+            <>
+              {competencies.filter(c => c.is_active).map(comp => {
+                const activeQs = comp.questions.filter(q => q.is_active);
+                const isSelected = selectedCompetencyIds.includes(comp.id);
+                return (
+                  <label key={comp.id} className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleCompetency(comp.id)}
+                      className="mt-1"
+                    />
+                    <div className="flex-1">
+                      <span className="font-medium text-sm">{comp.name}</span>
+                      <Badge variant="secondary" className="ml-2 text-xs">
+                        {activeQs.length} питань
+                      </Badge>
+                      {comp.description && (
+                        <p className="text-xs text-muted-foreground mt-0.5">{comp.description}</p>
+                      )}
+                    </div>
+                  </label>
+                );
+              })}
+
+              {selectedCompetencyIds.length > 0 && (
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setShowQuestionPreview(!showQuestionPreview)}
+                    className="flex items-center gap-1 text-sm text-primary hover:underline"
+                  >
+                    {showQuestionPreview ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                    Попередній перегляд питань ({selectedQuestionCount})
+                  </button>
+
+                  {showQuestionPreview && (
+                    <div className="mt-2 pl-4 border-l-2 border-gray-200 space-y-2">
+                      {competencies
+                        .filter(c => selectedCompetencyIds.includes(c.id))
+                        .map(comp => (
+                          <div key={comp.id}>
+                            <p className="text-xs font-semibold text-muted-foreground">{comp.name}</p>
+                            {comp.questions.filter(q => q.is_active).map(q => (
+                              <p key={q.id} className="text-xs text-gray-600 ml-2">• {q.text}</p>
+                            ))}
+                          </div>
+                        ))}
+                      {customQuestions.map((cq, i) => (
+                        <p key={i} className="text-xs text-gray-600 ml-2">• {cq.text} (специфічне)</p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Custom questions for this request */}
+          <div className="space-y-2 pt-2 border-t">
+            <Label>Специфічні питання для цієї вакансії</Label>
+            {customQuestions.map((cq, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <p className="flex-1 text-sm bg-gray-50 rounded px-3 py-2">{cq.text}</p>
+                <Button type="button" variant="ghost" size="sm" onClick={() => removeCustomQuestion(i)}>
+                  <X className="h-4 w-4 text-red-500" />
+                </Button>
+              </div>
+            ))}
+            <div className="flex gap-2">
+              <Input
+                value={newCustomQuestion}
+                onChange={(e) => setNewCustomQuestion(e.target.value)}
+                placeholder="Введіть специфічне питання..."
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustomQuestion(); } }}
+              />
+              <Button type="button" variant="outline" onClick={addCustomQuestion} disabled={!newCustomQuestion.trim()}>
+                <Plus className="h-4 w-4 mr-1" />
+                Додати
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

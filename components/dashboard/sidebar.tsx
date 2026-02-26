@@ -11,6 +11,7 @@ import {
   Users,
   LogOut,
   Search,
+  Settings,
 } from 'lucide-react';
 
 const navigation = [
@@ -18,6 +19,7 @@ const navigation = [
   { name: 'Requests', href: '/dashboard/requests', icon: Briefcase },
   { name: 'Candidates', href: '/dashboard/candidates', icon: Users },
   { name: 'Sourcing', href: '/dashboard/sourcing', icon: Search },
+  { name: 'Soft Skills', href: '/dashboard/settings/questionnaire', icon: Settings },
 ];
 
 export function Sidebar() {

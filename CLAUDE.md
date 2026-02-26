@@ -9,7 +9,7 @@
 
 Sieve (package name: `hiring-system`) is an AI-powered recruitment platform for **Vamos** (AI-first tech company). It automates candidate screening, matching, and outreach. Primary UI language is Ukrainian.
 
-**Candidate flow:** Application/Sourcing -> AI Analysis (1-10 score) -> Matching to requests -> Outreach -> Test Task -> Evaluation -> Interview
+**Candidate flow:** Application/Sourcing -> AI Analysis (1-10 score) -> Matching to requests -> Outreach -> **Soft Skills Questionnaire** -> Test Task -> Evaluation -> Interview
 
 ## Tech Stack
 
@@ -34,11 +34,13 @@ app/
     candidates/                   # Candidate list + detail [id]
     requests/                     # Hiring requests list + new + detail [id]
     sourcing/                     # Quick check (bookmarklet) + setup
+    settings/questionnaire/       # Soft Skills admin (competency/question bank)
   (public)/                       # Public pages
     page.tsx                      # Landing page
     apply/                        # Multi-step application form (4 steps)
     thank-you/                    # Success page
   submit-test/                    # Test task submission page
+  questionnaire/[token]/          # Public questionnaire form (token-based access)
   api/                            # API routes (see below)
 
 components/
@@ -46,6 +48,12 @@ components/
   candidates/                     # CandidateCard, CandidateFilters, ResumeViewer, etc.
   dashboard/                      # Header, Sidebar
     test-task/                    # TestTaskTimeline (timeline, submission preview, decision panel)
+    questionnaire/                # QuestionnaireSection (candidate detail integration)
+  settings/                       # Admin settings components
+    questionnaire-settings.tsx    # Competency/question bank management
+    competency-card.tsx           # Competency card with questions list
+    competency-dialog.tsx         # Create/edit competency dialog
+    question-dialog.tsx           # Create/edit question dialog
   outreach/                       # Outreach management UI
   public/                         # Landing page components
   requests/                       # RequestForm, RequestDetail
@@ -58,6 +66,7 @@ lib/
     outreach-prompts.ts           # Outreach + test task decision message prompts
     classifyResponse.ts           # Classify candidate Telegram responses
     evaluateTestTask.ts           # AI test task evaluation
+    evaluateQuestionnaire.ts      # AI soft skills questionnaire evaluation
   auth/auth.ts                    # NextAuth config
   supabase/
     client.ts                     # Supabase client factory (anon + service role)
@@ -90,7 +99,7 @@ lib/
   language-utils.ts               # Language detection
   utils.ts                        # General utilities
 
-supabase/migrations/              # SQL migration files (002-009)
+supabase/migrations/              # SQL migration files (002-010)
 public/bookmarklet/               # Bookmarklet source (vamos-quick-check.js)
 scripts/start-bot.ts              # Telegram bot start script
 middleware.ts                     # Auth middleware (protects /dashboard/*)
@@ -109,6 +118,7 @@ middleware.ts                     # Auth middleware (protects /dashboard/*)
 - priority, status, qualification_questions
 - test_task_url, test_task_deadline_days, test_task_message, test_task_evaluation_criteria
 - job_description (AI-generated)
+- questionnaire_competency_ids (UUID[]), questionnaire_custom_questions (JSONB)
 
 **candidates** — Applicants (warm + cold)
 - Contact: first_name, last_name, email, phone, telegram_username, telegram_chat_id (BIGINT), preferred_contact_methods
@@ -118,6 +128,7 @@ middleware.ts                     # Auth middleware (protects /dashboard/*)
 - Multilingual: original_language, translated_to, about_text_translated, why_vamos_translated, key_skills_translated
 - Outreach: outreach_status, outreach_sent_at, candidate_response, outreach_message
 - Test task: test_task_status, test_task_sent_at, test_task_original_deadline, test_task_current_deadline, test_task_extensions_count, test_task_submitted_at, test_task_submission_text, test_task_candidate_feedback, test_task_ai_score, test_task_ai_evaluation, test_task_late_by_hours
+- Questionnaire: questionnaire_status (sent|in_progress|completed|expired|skipped)
 
 **candidate_request_matches** — Many-to-many candidates<->requests
 - candidate_id, request_id, match_score (0-100), match_explanation
@@ -140,6 +151,19 @@ middleware.ts                     # Auth middleware (protects /dashboard/*)
 
 **ai_analysis_queue** — Background AI processing queue
 - candidate_id, status (pending|processing|completed|failed), error_message, retry_count
+
+### Soft Skills Questionnaire Tables
+
+**soft_skill_competencies** — Competency categories for questionnaire
+- id, name, description, is_active, created_at, updated_at
+
+**questionnaire_questions** — Questions linked to competencies
+- id, competency_id (FK), text, is_universal, is_active, created_at, updated_at
+
+**questionnaire_responses** — Candidate questionnaire answers + AI evaluation
+- id, candidate_id (FK), request_id (FK), token (UUID, unique), status (sent|in_progress|completed|expired)
+- questions (JSONB snapshot), answers (JSONB), ai_score (1-10), ai_evaluation (JSONB)
+- sent_at, started_at, submitted_at, expires_at
 
 ## API Routes
 
@@ -179,6 +203,17 @@ middleware.ts                     # Auth middleware (protects /dashboard/*)
 - `POST /api/test-task/generate-decision-message` — AI-generate approval/rejection message for candidate
 - `POST /api/test-task/decide` — Send decision (approved/rejected) + message to candidate via Telegram
 
+### Questionnaire
+- `GET/POST /api/questionnaire/competencies` — List (with questions) / Create competency (protected)
+- `PUT/DELETE /api/questionnaire/competencies/[id]` — Update / Deactivate competency (protected)
+- `POST /api/questionnaire/questions` — Create question (protected)
+- `PUT/DELETE /api/questionnaire/questions/[id]` — Update / Delete question (protected)
+- `POST /api/questionnaire/send` — Send questionnaire to candidate (protected)
+- `GET /api/questionnaire/[token]` — Get questionnaire data (public, token-based)
+- `POST /api/questionnaire/[token]/start` — Start questionnaire (public)
+- `POST /api/questionnaire/[token]/submit` — Submit answers (public, triggers AI evaluation)
+- `GET /api/questionnaire/response/[candidate_id]` — Get questionnaire results (protected)
+
 ### Telegram
 - `POST /api/telegram/webhook` — Webhook handler (classifies responses, handles commands)
 
@@ -209,6 +244,22 @@ middleware.ts                     # Auth middleware (protects /dashboard/*)
 4. Message queued for delivery (email or Telegram)
 5. Cron job sends in batches of 10/day
 6. System tracks delivery, reads, responses
+
+### Soft Skills Questionnaire Flow
+1. Manager configures competencies + questions in admin panel (`/dashboard/settings/questionnaire`)
+2. When creating a request, manager selects which competencies to include (+ optional custom questions)
+3. On candidate page, manager clicks "Надіслати анкету" → system generates UUID token link
+4. Candidate opens link → welcome screen → fills out questions (min 50 chars each) → submits
+5. AI evaluates answers (score 1-10, per-competency breakdown, strengths, concerns)
+6. Manager sees results on candidate detail page (QuestionnaireSection)
+
+**Questionnaire statuses:** `null` (not sent) → `sent` → `in_progress` → `completed` / `expired`
+
+**Key files:**
+- `lib/ai/evaluateQuestionnaire.ts` — AI evaluation with inline prompt (not in prompts.ts)
+- `components/dashboard/questionnaire/questionnaire-section.tsx` — Candidate detail integration
+- `components/settings/questionnaire-settings.tsx` — Admin panel
+- `app/questionnaire/[token]/questionnaire-form.tsx` — Public form
 
 ### Test Task Flow
 1. Manager schedules test task for candidate
@@ -293,7 +344,7 @@ Ukrainian (primary), English, Turkish, Spanish — detection via `lib/language-u
 - **Supabase client:** Use `createClient()` from `lib/supabase/client.ts` for regular requests; use service role client (from `SUPABASE_SERVICE_ROLE_KEY`) in cron jobs and webhook handler to bypass RLS.
 - **AI calls:** Text-only via `analyzeWithClaude()`, with PDF via `analyzeWithClaudeAndPDF()` in `lib/ai/claude.ts`. Prompts live in `lib/ai/prompts.ts`, outreach/decision prompts in `lib/ai/outreach-prompts.ts`.
 - **DB types:** `lib/supabase/types.ts` defines all table types — update when schema changes. Use `as never` cast for Supabase insert/update objects when TypeScript complains about strict typing.
-- **Migrations:** SQL files in `supabase/migrations/`, numbered sequentially (002-009).
+- **Migrations:** SQL files in `supabase/migrations/`, numbered sequentially (002-010).
 - **Components:** shadcn/ui in `components/ui/`, feature components grouped by domain.
 - **Vercel Hobby plan:** Cron jobs limited to once per day (`0 10 * * *`). Critical time-sensitive operations (like test task sending) should be handled immediately in webhook/API handlers, not via cron.
 

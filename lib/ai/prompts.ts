@@ -213,3 +213,4 @@ Return your analysis as a JSON object with this structure:
   "reasoning": "string (in Ukrainian)"
 }
 `;
+

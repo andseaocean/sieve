@@ -7,6 +7,7 @@ import { Header } from '@/components/dashboard/header';
 import { CommentSection } from '@/components/candidates/comment-section';
 import { OutreachPreview } from '@/components/outreach/outreach-preview';
 import { TestTaskTimeline } from '@/components/dashboard/test-task/TestTaskTimeline';
+import { QuestionnaireSection } from '@/components/dashboard/questionnaire/questionnaire-section';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -18,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Candidate } from '@/lib/supabase/types';
+import { Candidate, QuestionnaireStatus } from '@/lib/supabase/types';
 import {
   getInitials,
   categoryColors,
@@ -83,6 +84,7 @@ export default function CandidateDetailsPage() {
           const commentsData = await commentsRes.json();
           setComments(commentsData);
         }
+
       } catch (error) {
         console.error('Error fetching data:', error);
         toast.error('Помилка завантаження');
@@ -492,6 +494,12 @@ export default function CandidateDetailsPage() {
               preferredContactMethods={candidate.preferred_contact_methods}
             />
           )}
+
+          {/* Soft Skills Questionnaire */}
+          <QuestionnaireSection
+            candidateId={candidateId}
+            questionnaireStatus={(candidate as Record<string, unknown>).questionnaire_status as QuestionnaireStatus | null}
+          />
 
           {/* Test Task Timeline */}
           <TestTaskTimeline candidate={candidate} />

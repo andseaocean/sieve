@@ -15,7 +15,8 @@ export type ContactMethod = 'email' | 'telegram';
 export type OutreachMessageType = 'intro' | 'test_task' | 'follow_up';
 export type TestTaskStatus = 'not_sent' | 'scheduled' | 'sent' | 'submitted_on_time' | 'submitted_late' | 'evaluating' | 'evaluated' | 'approved' | 'rejected';
 export type ConversationDirection = 'outbound' | 'inbound';
-export type ConversationMessageType = 'outreach' | 'test_task' | 'candidate_response' | 'ai_reply' | 'deadline_extension_request' | 'deadline_extension_granted' | 'deadline_extension_denied' | 'test_task_decision';
+export type ConversationMessageType = 'outreach' | 'test_task' | 'candidate_response' | 'ai_reply' | 'deadline_extension_request' | 'deadline_extension_granted' | 'deadline_extension_denied' | 'test_task_decision' | 'questionnaire_sent' | 'questionnaire_submitted';
+export type QuestionnaireStatus = 'sent' | 'in_progress' | 'completed' | 'expired' | 'skipped';
 
 export type Database = {
   public: {
@@ -70,6 +71,8 @@ export type Database = {
           test_task_message: string | null;
           test_task_evaluation_criteria: string | null;
           job_description: string | null;
+          questionnaire_competency_ids: string[];
+          questionnaire_custom_questions: Json;
         };
         Insert: {
           id?: string;
@@ -94,6 +97,8 @@ export type Database = {
           test_task_message?: string | null;
           test_task_evaluation_criteria?: string | null;
           job_description?: string | null;
+          questionnaire_competency_ids?: string[];
+          questionnaire_custom_questions?: Json;
         };
         Update: {
           id?: string;
@@ -118,6 +123,8 @@ export type Database = {
           test_task_message?: string | null;
           test_task_evaluation_criteria?: string | null;
           job_description?: string | null;
+          questionnaire_competency_ids?: string[];
+          questionnaire_custom_questions?: Json;
         };
       };
       candidates: {
@@ -177,6 +184,7 @@ export type Database = {
           test_task_ai_evaluation: string | null;
           test_task_late_by_hours: number | null;
           resume_extracted_data: ResumeData | null;
+          questionnaire_status: QuestionnaireStatus | null;
         };
         Insert: {
           id?: string;
@@ -234,6 +242,7 @@ export type Database = {
           test_task_ai_evaluation?: string | null;
           test_task_late_by_hours?: number | null;
           resume_extracted_data?: ResumeData | null;
+          questionnaire_status?: QuestionnaireStatus | null;
         };
         Update: {
           id?: string;
@@ -291,6 +300,7 @@ export type Database = {
           test_task_ai_evaluation?: string | null;
           test_task_late_by_hours?: number | null;
           resume_extracted_data?: ResumeData | null;
+          questionnaire_status?: QuestionnaireStatus | null;
         };
       };
       candidate_conversations: {
@@ -483,6 +493,114 @@ export type Database = {
           created_at?: string;
         };
       };
+      soft_skill_competencies: {
+        Row: {
+          id: string;
+          name: string;
+          description: string | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          description?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          description?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      questionnaire_questions: {
+        Row: {
+          id: string;
+          competency_id: string;
+          text: string;
+          text_translations: Json;
+          is_universal: boolean;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          competency_id: string;
+          text: string;
+          text_translations?: Json;
+          is_universal?: boolean;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          competency_id?: string;
+          text?: string;
+          text_translations?: Json;
+          is_universal?: boolean;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      questionnaire_responses: {
+        Row: {
+          id: string;
+          candidate_id: string;
+          request_id: string;
+          token: string;
+          status: 'sent' | 'in_progress' | 'completed' | 'expired';
+          questions: Json;
+          answers: Json;
+          ai_score: number | null;
+          ai_evaluation: Json;
+          sent_at: string;
+          started_at: string | null;
+          submitted_at: string | null;
+          expires_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          candidate_id: string;
+          request_id: string;
+          token: string;
+          status?: 'sent' | 'in_progress' | 'completed' | 'expired';
+          questions: Json;
+          answers?: Json;
+          ai_score?: number | null;
+          ai_evaluation?: Json;
+          sent_at?: string;
+          started_at?: string | null;
+          submitted_at?: string | null;
+          expires_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          candidate_id?: string;
+          request_id?: string;
+          token?: string;
+          status?: 'sent' | 'in_progress' | 'completed' | 'expired';
+          questions?: Json;
+          answers?: Json;
+          ai_score?: number | null;
+          ai_evaluation?: Json;
+          sent_at?: string;
+          started_at?: string | null;
+          submitted_at?: string | null;
+          expires_at?: string | null;
+          created_at?: string;
+        };
+      };
     };
     Views: {
       [_ in never]: never;
@@ -538,3 +656,32 @@ export type MatchStatus = 'new' | 'reviewed' | 'interview' | 'hired' | 'rejected
 export type SourcingMethod = 'form' | 'quick_check' | 'auto_search' | 'referral' | 'manual';
 export type Platform = 'linkedin' | 'dou' | 'djinni' | 'workua' | 'github' | 'other';
 export type SupportedLanguage = 'uk' | 'en' | 'tr' | 'es';
+
+// Questionnaire types
+export type SoftSkillCompetency = Database['public']['Tables']['soft_skill_competencies']['Row'];
+export type QuestionnaireQuestion = Database['public']['Tables']['questionnaire_questions']['Row'];
+export type QuestionnaireResponse = Database['public']['Tables']['questionnaire_responses']['Row'];
+export type SoftSkillCompetencyInsert = Database['public']['Tables']['soft_skill_competencies']['Insert'];
+export type QuestionnaireQuestionInsert = Database['public']['Tables']['questionnaire_questions']['Insert'];
+export type QuestionnaireResponseInsert = Database['public']['Tables']['questionnaire_responses']['Insert'];
+
+// Questionnaire data interfaces
+export interface QuestionnaireQuestionSnapshot {
+  question_id: string;
+  competency_id: string;
+  competency_name: string;
+  text: string;
+}
+
+export interface QuestionnaireAIEvaluation {
+  summary: string;
+  strengths: string[];
+  concerns: string[];
+  recommendation: string;
+  per_competency: Array<{
+    competency_id: string;
+    competency_name: string;
+    score: number;
+    comment: string;
+  }>;
+}
