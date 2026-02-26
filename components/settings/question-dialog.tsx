@@ -50,7 +50,7 @@ export function QuestionDialog({ open, onOpenChange, competencyId, question, onS
 
       const body = isEdit
         ? { text }
-        : { competency_id: competencyId, text, is_universal: true };
+        : { competency_id: competencyId, text };
 
       const res = await fetch(url, {
         method: isEdit ? 'PUT' : 'POST',

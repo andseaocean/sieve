@@ -105,9 +105,6 @@ export function CompetencyCard({ competency, onEdit, onDelete, onQuestionsChange
                         <span className="text-muted-foreground mr-2">{i + 1}.</span>
                         {question.text}
                       </p>
-                      {question.is_universal && (
-                        <Badge variant="outline" className="mt-1 text-xs">Універсальне</Badge>
-                      )}
                     </div>
                     <div className="flex gap-1">
                       <Button variant="ghost" size="sm" onClick={() => handleEditQuestion(question)}>

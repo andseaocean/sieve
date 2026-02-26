@@ -58,14 +58,20 @@ export function RequestForm({ request, isEdit = false }: RequestFormProps) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [competencies, setCompetencies] = useState<CompetencyWithQuestions[]>([]);
-  const [selectedCompetencyIds, setSelectedCompetencyIds] = useState<string[]>(
+  // Competencies in "all random" mode
+  const [randomCompetencyIds, setRandomCompetencyIds] = useState<string[]>(
     (request as Record<string, unknown>)?.questionnaire_competency_ids as string[] || []
   );
-  const [customQuestions, setCustomQuestions] = useState<Array<{ text: string }>>(
-    ((request as Record<string, unknown>)?.questionnaire_custom_questions as Array<{ text: string }>) || []
+  // Specific question IDs
+  const [selectedQuestionIds, setSelectedQuestionIds] = useState<string[]>(
+    (request as Record<string, unknown>)?.questionnaire_question_ids as string[] || []
   );
+  // Per-competency selection mode
+  const [competencyModes, setCompetencyModes] = useState<Record<string, 'all' | 'specific'>>({});
+  // Custom question input
   const [newCustomQuestion, setNewCustomQuestion] = useState('');
-  const [showQuestionPreview, setShowQuestionPreview] = useState(false);
+  const [newCustomCompetencyId, setNewCustomCompetencyId] = useState('');
+  const [savingCustom, setSavingCustom] = useState(false);
 
   useEffect(() => {
     fetch('/api/questionnaire/competencies')
@@ -74,26 +80,122 @@ export function RequestForm({ request, isEdit = false }: RequestFormProps) {
       .catch(() => {});
   }, []);
 
-  const toggleCompetency = (id: string) => {
-    setSelectedCompetencyIds(prev =>
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+  // Initialize competency modes from saved data
+  useEffect(() => {
+    if (competencies.length === 0) return;
+    const modes: Record<string, 'all' | 'specific'> = {};
+
+    randomCompetencyIds.forEach(id => {
+      modes[id] = 'all';
+    });
+
+    selectedQuestionIds.forEach(qId => {
+      for (const comp of competencies) {
+        if (comp.questions.some(q => q.id === qId)) {
+          if (!modes[comp.id]) {
+            modes[comp.id] = 'specific';
+          }
+          break;
+        }
+      }
+    });
+
+    setCompetencyModes(modes);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [competencies]);
+
+  const handleToggleCompetency = (compId: string) => {
+    const currentMode = competencyModes[compId];
+    if (currentMode) {
+      // Deselect: remove from modes and clean up
+      setCompetencyModes(prev => {
+        const next = { ...prev };
+        delete next[compId];
+        return next;
+      });
+      setRandomCompetencyIds(ids => ids.filter(id => id !== compId));
+      const comp = competencies.find(c => c.id === compId);
+      if (comp) {
+        const compQIds = comp.questions.map(q => q.id);
+        setSelectedQuestionIds(ids => ids.filter(id => !compQIds.includes(id)));
+      }
+    } else {
+      // Select: default to "all"
+      setCompetencyModes(prev => ({ ...prev, [compId]: 'all' }));
+      setRandomCompetencyIds(ids => [...ids, compId]);
+    }
+  };
+
+  const handleSetCompetencyMode = (compId: string, mode: 'all' | 'specific') => {
+    setCompetencyModes(prev => ({ ...prev, [compId]: mode }));
+    const comp = competencies.find(c => c.id === compId);
+    if (!comp) return;
+    const compQIds = comp.questions.filter(q => q.is_active).map(q => q.id);
+
+    if (mode === 'all') {
+      setRandomCompetencyIds(ids => ids.includes(compId) ? ids : [...ids, compId]);
+      setSelectedQuestionIds(ids => ids.filter(id => !compQIds.includes(id)));
+    } else {
+      setRandomCompetencyIds(ids => ids.filter(id => id !== compId));
+      // Don't auto-select questions — let the user pick
+    }
+  };
+
+  const handleToggleQuestion = (questionId: string) => {
+    setSelectedQuestionIds(prev =>
+      prev.includes(questionId) ? prev.filter(id => id !== questionId) : [...prev, questionId]
     );
   };
 
-  const addCustomQuestion = () => {
-    if (!newCustomQuestion.trim()) return;
-    setCustomQuestions(prev => [...prev, { text: newCustomQuestion.trim() }]);
-    setNewCustomQuestion('');
-  };
+  const saveCustomQuestion = async () => {
+    if (!newCustomQuestion.trim() || !newCustomCompetencyId) return;
+    setSavingCustom(true);
+    try {
+      const res = await fetch('/api/questionnaire/questions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ competency_id: newCustomCompetencyId, text: newCustomQuestion.trim() }),
+      });
+      if (!res.ok) throw new Error('Failed to save');
+      const newQ = await res.json();
 
-  const removeCustomQuestion = (index: number) => {
-    setCustomQuestions(prev => prev.filter((_, i) => i !== index));
-  };
+      // Add to selected question IDs
+      setSelectedQuestionIds(prev => [...prev, newQ.id]);
 
-  const selectedQuestionCount = competencies
-    .filter(c => selectedCompetencyIds.includes(c.id))
-    .reduce((sum, c) => sum + c.questions.filter(q => q.is_active).length, 0)
-    + customQuestions.length;
+      // Ensure competency is in specific mode
+      setCompetencyModes(prev => {
+        if (prev[newCustomCompetencyId] === 'all') {
+          // Switch to specific — move all questions to selected
+          setRandomCompetencyIds(ids => ids.filter(id => id !== newCustomCompetencyId));
+          const comp = competencies.find(c => c.id === newCustomCompetencyId);
+          if (comp) {
+            const existingQIds = comp.questions.filter(q => q.is_active).map(q => q.id);
+            setSelectedQuestionIds(prevIds => [...new Set([...prevIds, ...existingQIds, newQ.id])]);
+          }
+          return { ...prev, [newCustomCompetencyId]: 'specific' };
+        }
+        if (!prev[newCustomCompetencyId]) {
+          return { ...prev, [newCustomCompetencyId]: 'specific' };
+        }
+        return prev;
+      });
+
+      // Refresh competencies to show the new question
+      const compRes = await fetch('/api/questionnaire/competencies');
+      if (compRes.ok) {
+        const data = await compRes.json();
+        setCompetencies(Array.isArray(data) ? data : []);
+      }
+
+      setNewCustomQuestion('');
+      toast.success('Питання додано до банку');
+    } catch (error) {
+      console.error('Error saving custom question:', error);
+      toast.error('Помилка збереження питання');
+    } finally {
+      setSavingCustom(false);
+    }
+  };
 
   const {
     register,
@@ -138,8 +240,9 @@ export function RequestForm({ request, isEdit = false }: RequestFormProps) {
         test_task_message: data.test_task_message || null,
         test_task_evaluation_criteria: data.test_task_evaluation_criteria || null,
         job_description: data.job_description || null,
-        questionnaire_competency_ids: selectedCompetencyIds,
-        questionnaire_custom_questions: customQuestions,
+        questionnaire_competency_ids: randomCompetencyIds,
+        questionnaire_question_ids: selectedQuestionIds,
+        questionnaire_custom_questions: [],
       };
 
       const response = await fetch(url, {
@@ -436,7 +539,7 @@ export function RequestForm({ request, isEdit = false }: RequestFormProps) {
         <CardHeader>
           <CardTitle>Soft Skills Оцінка</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Оберіть компетенції для перевірки. Кандидат отримає анкету з питаннями обраних компетенцій.
+            Оберіть компетенції та питання. Для кожної компетенції можна обрати &quot;всі (3-4 випадкових)&quot; або вказати конкретні питання.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -445,87 +548,119 @@ export function RequestForm({ request, isEdit = false }: RequestFormProps) {
               Компетенції ще не створені. Додайте їх у розділі &quot;Soft Skills&quot; меню.
             </p>
           ) : (
-            <>
+            <div className="space-y-3">
               {competencies.filter(c => c.is_active).map(comp => {
                 const activeQs = comp.questions.filter(q => q.is_active);
-                const isSelected = selectedCompetencyIds.includes(comp.id);
+                const mode = competencyModes[comp.id];
+                const isSelected = !!mode;
+
                 return (
-                  <label key={comp.id} className="flex items-start gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => toggleCompetency(comp.id)}
-                      className="mt-1"
-                    />
-                    <div className="flex-1">
-                      <span className="font-medium text-sm">{comp.name}</span>
-                      <Badge variant="secondary" className="ml-2 text-xs">
-                        {activeQs.length} питань
-                      </Badge>
-                      {comp.description && (
-                        <p className="text-xs text-muted-foreground mt-0.5">{comp.description}</p>
-                      )}
-                    </div>
-                  </label>
+                  <div key={comp.id} className="border rounded-lg p-3 space-y-2">
+                    {/* Competency header */}
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => handleToggleCompetency(comp.id)}
+                        className="mt-1"
+                      />
+                      <div className="flex-1">
+                        <span className="font-medium text-sm">{comp.name}</span>
+                        <Badge variant="secondary" className="ml-2 text-xs">
+                          {activeQs.length} питань
+                        </Badge>
+                        {comp.description && (
+                          <p className="text-xs text-muted-foreground mt-0.5">{comp.description}</p>
+                        )}
+                      </div>
+                    </label>
+
+                    {/* Selection mode */}
+                    {isSelected && (
+                      <div className="ml-7 space-y-2">
+                        <div className="flex gap-4">
+                          <label className="flex items-center gap-2 text-sm cursor-pointer">
+                            <input
+                              type="radio"
+                              name={`mode-${comp.id}`}
+                              checked={mode === 'all'}
+                              onChange={() => handleSetCompetencyMode(comp.id, 'all')}
+                            />
+                            Всі (3-4 випадкових)
+                          </label>
+                          <label className="flex items-center gap-2 text-sm cursor-pointer">
+                            <input
+                              type="radio"
+                              name={`mode-${comp.id}`}
+                              checked={mode === 'specific'}
+                              onChange={() => handleSetCompetencyMode(comp.id, 'specific')}
+                            />
+                            Обрати конкретні
+                          </label>
+                        </div>
+
+                        {/* Individual question checkboxes */}
+                        {mode === 'specific' && (
+                          <div className="space-y-1 pl-2 border-l-2 border-gray-200">
+                            {activeQs.length === 0 ? (
+                              <p className="text-xs text-muted-foreground italic">Питань ще немає</p>
+                            ) : (
+                              activeQs.map(q => (
+                                <label key={q.id} className="flex items-start gap-2 cursor-pointer py-0.5">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedQuestionIds.includes(q.id)}
+                                    onChange={() => handleToggleQuestion(q.id)}
+                                    className="mt-0.5"
+                                  />
+                                  <span className="text-sm">{q.text}</span>
+                                </label>
+                              ))
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 );
               })}
-
-              {selectedCompetencyIds.length > 0 && (
-                <div>
-                  <button
-                    type="button"
-                    onClick={() => setShowQuestionPreview(!showQuestionPreview)}
-                    className="flex items-center gap-1 text-sm text-primary hover:underline"
-                  >
-                    {showQuestionPreview ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                    Попередній перегляд питань ({selectedQuestionCount})
-                  </button>
-
-                  {showQuestionPreview && (
-                    <div className="mt-2 pl-4 border-l-2 border-gray-200 space-y-2">
-                      {competencies
-                        .filter(c => selectedCompetencyIds.includes(c.id))
-                        .map(comp => (
-                          <div key={comp.id}>
-                            <p className="text-xs font-semibold text-muted-foreground">{comp.name}</p>
-                            {comp.questions.filter(q => q.is_active).map(q => (
-                              <p key={q.id} className="text-xs text-gray-600 ml-2">• {q.text}</p>
-                            ))}
-                          </div>
-                        ))}
-                      {customQuestions.map((cq, i) => (
-                        <p key={i} className="text-xs text-gray-600 ml-2">• {cq.text} (специфічне)</p>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </>
+            </div>
           )}
 
-          {/* Custom questions for this request */}
+          {/* Add custom question to bank */}
           <div className="space-y-2 pt-2 border-t">
-            <Label>Специфічні питання для цієї вакансії</Label>
-            {customQuestions.map((cq, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <p className="flex-1 text-sm bg-gray-50 rounded px-3 py-2">{cq.text}</p>
-                <Button type="button" variant="ghost" size="sm" onClick={() => removeCustomQuestion(i)}>
-                  <X className="h-4 w-4 text-red-500" />
-                </Button>
-              </div>
-            ))}
+            <Label>Додати нове питання до банку</Label>
             <div className="flex gap-2">
+              <Select value={newCustomCompetencyId} onValueChange={setNewCustomCompetencyId}>
+                <SelectTrigger className="w-52">
+                  <SelectValue placeholder="Компетенція" />
+                </SelectTrigger>
+                <SelectContent>
+                  {competencies.filter(c => c.is_active).map(c => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Input
                 value={newCustomQuestion}
                 onChange={(e) => setNewCustomQuestion(e.target.value)}
-                placeholder="Введіть специфічне питання..."
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustomQuestion(); } }}
+                placeholder="Введіть питання..."
+                className="flex-1"
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); saveCustomQuestion(); } }}
               />
-              <Button type="button" variant="outline" onClick={addCustomQuestion} disabled={!newCustomQuestion.trim()}>
-                <Plus className="h-4 w-4 mr-1" />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={saveCustomQuestion}
+                disabled={!newCustomQuestion.trim() || !newCustomCompetencyId || savingCustom}
+              >
+                {savingCustom ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />}
                 Додати
               </Button>
             </div>
+            <p className="text-xs text-muted-foreground">
+              Питання буде збережено в банк обраної компетенції та автоматично додано до цієї вакансії.
+            </p>
           </div>
         </CardContent>
       </Card>

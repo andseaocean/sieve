@@ -49,17 +49,18 @@ export async function POST(request: NextRequest) {
     }
 
     const competencyIds = (req as Record<string, unknown>).questionnaire_competency_ids as string[] || [];
+    const questionIds = (req as Record<string, unknown>).questionnaire_question_ids as string[] || [];
+    // Legacy: custom questions for old requests
     const customQuestions = (req as Record<string, unknown>).questionnaire_custom_questions as Array<{ text: string }> || [];
 
-    if (competencyIds.length === 0 && customQuestions.length === 0) {
-      return NextResponse.json({ error: 'Для цієї вакансії не обрані компетенції' }, { status: 400 });
+    if (competencyIds.length === 0 && questionIds.length === 0 && customQuestions.length === 0) {
+      return NextResponse.json({ error: 'Для цієї вакансії не обрані компетенції або питання' }, { status: 400 });
     }
 
-    // Fetch questions for selected competencies
     let questions: QuestionnaireQuestionSnapshot[] = [];
 
+    // 1. For "random" competencies: fetch active questions and pick 3-4 random
     if (competencyIds.length > 0) {
-      // Fetch competencies
       const { data: competenciesData } = await supabase
         .from('soft_skill_competencies' as never)
         .select('id, name')
@@ -68,25 +69,66 @@ export async function POST(request: NextRequest) {
       const competencies = (competenciesData || []) as unknown as Pick<SoftSkillCompetency, 'id' | 'name'>[];
       const compMap = new Map(competencies.map(c => [c.id, c.name]));
 
-      // Fetch active questions for these competencies
       const { data: dbQuestionsData } = await supabase
         .from('questionnaire_questions' as never)
         .select('*')
         .in('competency_id', competencyIds)
-        .eq('is_active', true)
-        .order('created_at', { ascending: true });
+        .eq('is_active', true);
 
       const dbQuestions = (dbQuestionsData || []) as unknown as QuestionnaireQuestion[];
 
-      questions = dbQuestions.map(q => ({
-        question_id: q.id,
-        competency_id: q.competency_id,
-        competency_name: compMap.get(q.competency_id) || '',
-        text: q.text,
-      }));
+      // Group by competency and pick 3-4 random from each
+      for (const compId of competencyIds) {
+        const compQuestions = dbQuestions.filter(q => q.competency_id === compId);
+        const count = Math.min(compQuestions.length, Math.floor(Math.random() * 2) + 3); // 3 or 4
+        const shuffled = [...compQuestions].sort(() => Math.random() - 0.5);
+        const selected = shuffled.slice(0, count);
+
+        selected.forEach(q => {
+          questions.push({
+            question_id: q.id,
+            competency_id: q.competency_id,
+            competency_name: compMap.get(q.competency_id) || '',
+            text: q.text,
+          });
+        });
+      }
     }
 
-    // Add custom questions
+    // 2. For specific question IDs: fetch those exact questions
+    if (questionIds.length > 0) {
+      const { data: specificQData } = await supabase
+        .from('questionnaire_questions' as never)
+        .select('*')
+        .in('id', questionIds)
+        .eq('is_active', true);
+
+      const specificQuestions = (specificQData || []) as unknown as QuestionnaireQuestion[];
+
+      // Fetch competency names for these questions
+      const neededCompIds = [...new Set(specificQuestions.map(q => q.competency_id))];
+      if (neededCompIds.length > 0) {
+        const { data: compNamesData } = await supabase
+          .from('soft_skill_competencies' as never)
+          .select('id, name')
+          .in('id', neededCompIds);
+
+        const compNameMap = new Map(
+          ((compNamesData || []) as unknown as Pick<SoftSkillCompetency, 'id' | 'name'>[]).map(c => [c.id, c.name])
+        );
+
+        specificQuestions.forEach(q => {
+          questions.push({
+            question_id: q.id,
+            competency_id: q.competency_id,
+            competency_name: compNameMap.get(q.competency_id) || '',
+            text: q.text,
+          });
+        });
+      }
+    }
+
+    // 3. Legacy: add custom questions (for old requests)
     customQuestions.forEach((cq, i) => {
       if (cq.text?.trim()) {
         questions.push({
@@ -96,6 +138,14 @@ export async function POST(request: NextRequest) {
           text: cq.text,
         });
       }
+    });
+
+    // Deduplicate by question_id
+    const seen = new Set<string>();
+    questions = questions.filter(q => {
+      if (seen.has(q.question_id)) return false;
+      seen.add(q.question_id);
+      return true;
     });
 
     if (questions.length === 0) {

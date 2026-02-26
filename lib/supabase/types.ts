@@ -72,6 +72,7 @@ export type Database = {
           test_task_evaluation_criteria: string | null;
           job_description: string | null;
           questionnaire_competency_ids: string[];
+          questionnaire_question_ids: string[];
           questionnaire_custom_questions: Json;
         };
         Insert: {
@@ -98,6 +99,7 @@ export type Database = {
           test_task_evaluation_criteria?: string | null;
           job_description?: string | null;
           questionnaire_competency_ids?: string[];
+          questionnaire_question_ids?: string[];
           questionnaire_custom_questions?: Json;
         };
         Update: {
@@ -124,6 +126,7 @@ export type Database = {
           test_task_evaluation_criteria?: string | null;
           job_description?: string | null;
           questionnaire_competency_ids?: string[];
+          questionnaire_question_ids?: string[];
           questionnaire_custom_questions?: Json;
         };
       };

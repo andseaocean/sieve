@@ -73,6 +73,9 @@ export async function PATCH(
     if (body.test_task_message !== undefined) updateData.test_task_message = body.test_task_message;
     if (body.test_task_evaluation_criteria !== undefined) updateData.test_task_evaluation_criteria = body.test_task_evaluation_criteria;
     if (body.job_description !== undefined) updateData.job_description = body.job_description;
+    if (body.questionnaire_competency_ids !== undefined) updateData.questionnaire_competency_ids = body.questionnaire_competency_ids;
+    if (body.questionnaire_question_ids !== undefined) updateData.questionnaire_question_ids = body.questionnaire_question_ids;
+    if (body.questionnaire_custom_questions !== undefined) updateData.questionnaire_custom_questions = body.questionnaire_custom_questions;
 
     const supabase = createServerClient();
     const { data, error } = await supabase

@@ -118,7 +118,7 @@ middleware.ts                     # Auth middleware (protects /dashboard/*)
 - priority, status, qualification_questions
 - test_task_url, test_task_deadline_days, test_task_message, test_task_evaluation_criteria
 - job_description (AI-generated)
-- questionnaire_competency_ids (UUID[]), questionnaire_custom_questions (JSONB)
+- questionnaire_competency_ids (UUID[]), questionnaire_question_ids (UUID[]), questionnaire_custom_questions (JSONB)
 
 **candidates** — Applicants (warm + cold)
 - Contact: first_name, last_name, email, phone, telegram_username, telegram_chat_id (BIGINT), preferred_contact_methods
@@ -247,7 +247,7 @@ middleware.ts                     # Auth middleware (protects /dashboard/*)
 
 ### Soft Skills Questionnaire Flow
 1. Manager configures competencies + questions in admin panel (`/dashboard/settings/questionnaire`)
-2. When creating a request, manager selects which competencies to include (+ optional custom questions)
+2. When creating a request, manager selects competencies in two modes: "all random" (system picks 3-4 at send time) or "specific questions" (exact question IDs). Custom questions added in the form are saved to the question bank.
 3. On candidate page, manager clicks "Надіслати анкету" → system generates UUID token link
 4. Candidate opens link → welcome screen → fills out questions (min 50 chars each) → submits
 5. AI evaluates answers (score 1-10, per-competency breakdown, strengths, concerns)
@@ -344,7 +344,7 @@ Ukrainian (primary), English, Turkish, Spanish — detection via `lib/language-u
 - **Supabase client:** Use `createClient()` from `lib/supabase/client.ts` for regular requests; use service role client (from `SUPABASE_SERVICE_ROLE_KEY`) in cron jobs and webhook handler to bypass RLS.
 - **AI calls:** Text-only via `analyzeWithClaude()`, with PDF via `analyzeWithClaudeAndPDF()` in `lib/ai/claude.ts`. Prompts live in `lib/ai/prompts.ts`, outreach/decision prompts in `lib/ai/outreach-prompts.ts`.
 - **DB types:** `lib/supabase/types.ts` defines all table types — update when schema changes. Use `as never` cast for Supabase insert/update objects when TypeScript complains about strict typing.
-- **Migrations:** SQL files in `supabase/migrations/`, numbered sequentially (002-010).
+- **Migrations:** SQL files in `supabase/migrations/`, numbered sequentially (002-011).
 - **Components:** shadcn/ui in `components/ui/`, feature components grouped by domain.
 - **Vercel Hobby plan:** Cron jobs limited to once per day (`0 10 * * *`). Critical time-sensitive operations (like test task sending) should be handled immediately in webhook/API handlers, not via cron.
 

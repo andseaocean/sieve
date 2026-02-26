@@ -60,6 +60,9 @@ export async function POST(request: NextRequest) {
       test_task_message: body.test_task_message || null,
       test_task_evaluation_criteria: body.test_task_evaluation_criteria || null,
       job_description: body.job_description || null,
+      questionnaire_competency_ids: body.questionnaire_competency_ids || [],
+      questionnaire_question_ids: body.questionnaire_question_ids || [],
+      questionnaire_custom_questions: body.questionnaire_custom_questions || [],
     };
 
     const supabase = createServerClient();
