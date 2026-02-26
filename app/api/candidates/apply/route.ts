@@ -178,19 +178,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Add candidate to AI analysis queue (processed by cron job)
-    const { error: queueError } = await supabase
-      .from('ai_analysis_queue')
-      .insert({
-        candidate_id: candidate.id,
-        status: 'pending',
-      } as never);
-
-    if (queueError) {
-      console.error('Error adding to AI analysis queue:', queueError);
-    } else {
-      console.log(`Candidate ${candidate.id} added to AI analysis queue`);
-    }
+    // Fire-and-forget: trigger background AI analysis immediately
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000';
+    const internalSecret = process.env.INTERNAL_API_SECRET || 'default-secret';
+    fetch(`${appUrl}/api/candidates/${candidate.id}/analyze-background`, {
+      method: 'POST',
+      headers: { 'x-internal-secret': internalSecret },
+    }).catch((err) => {
+      console.error('Failed to trigger background analysis:', err);
+    });
+    console.log(`Background AI analysis triggered for candidate ${candidate.id}`);
 
     return NextResponse.json({
       success: true,

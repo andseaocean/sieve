@@ -126,7 +126,7 @@ export async function POST(
       analysis = parseAIAnalysisResult(response);
     }
 
-    // Update candidate with AI results
+    // Update candidate with AI results + set pipeline_stage to analyzed
     await supabase
       .from('candidates')
       .update({
@@ -137,6 +137,7 @@ export async function POST(
         ai_concerns: analysis.concerns || [],
         ai_recommendation: analysis.recommendation || null,
         ai_reasoning: analysis.reasoning || null,
+        pipeline_stage: 'analyzed',
       } as never)
       .eq('id', candidateId);
 
@@ -201,6 +202,46 @@ export async function POST(
         }
 
         console.log(`Background AI: Match created for request ${request.id} with score ${matchResult.match_score}`);
+      }
+    }
+
+    // Trigger outreach automation for strong candidates (score >= 7)
+    if (analysis.score >= 7 && requestsData && requestsData.length > 0) {
+      try {
+        const { addToAutomationQueue } = await import('@/lib/automation/queue');
+
+        // Find the best match with an approved outreach template
+        const { data: bestMatchData } = await supabase
+          .from('candidate_request_matches')
+          .select('request_id, match_score')
+          .eq('candidate_id', candidateId)
+          .order('match_score', { ascending: false })
+          .limit(10);
+
+        // Check which matched requests have approved outreach templates
+        if (bestMatchData && bestMatchData.length > 0) {
+          for (const match of bestMatchData as { request_id: string; match_score: number }[]) {
+            const { data: reqData } = await supabase
+              .from('requests')
+              .select('id, outreach_template_approved')
+              .eq('id', match.request_id)
+              .eq('outreach_template_approved', true)
+              .single();
+
+            if (reqData) {
+              await addToAutomationQueue({
+                supabase,
+                actionType: 'send_outreach',
+                candidateId,
+                requestId: match.request_id,
+              });
+              console.log(`Background AI: Queued outreach for candidate ${candidateId}, request ${match.request_id}`);
+              break; // Only queue for the best matching request
+            }
+          }
+        }
+      } catch (outreachError) {
+        console.error('Background AI: Failed to queue outreach:', outreachError);
       }
     }
 

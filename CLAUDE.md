@@ -188,7 +188,7 @@ middleware.ts                     # Auth middleware (protects /dashboard/*)
 - `POST /api/candidates/apply` — Submit application (public)
 - `GET /api/candidates` — List (filters: category, source, score, search, sort)
 - `GET/PUT/DELETE /api/candidates/[id]` — CRUD
-- `POST /api/candidates/[id]/analyze-background` — Queue AI analysis
+- `POST /api/candidates/[id]/analyze-background` — Background AI analysis (fire-and-forget from apply, triggers outreach)
 - `GET /api/candidates/[id]/resume` — PDF resume proxy/viewer
 - `GET/POST /api/candidates/[id]/comments` — Comments
 - `GET /api/candidates/[id]/match-info` — Best match request_id + final_decision
@@ -237,10 +237,12 @@ middleware.ts                     # Auth middleware (protects /dashboard/*)
 - `POST /api/telegram/webhook` — Webhook handler (classifies responses, handles commands, processes outreach callback_query inline buttons)
 
 ### Cron (daily at 10:00 UTC, secured by CRON_SECRET)
-- `GET /api/cron/process-outreach` — Send scheduled outreach (batch of 10)
-- `GET /api/cron/process-ai-analysis` — Process AI analysis queue (also triggers outreach automation for score ≥ 7)
-- `GET /api/cron/process-test-tasks` — Test task deadlines & reminders
 - `GET /api/cron/process-automation` — Process automation_queue jobs (outreach, questionnaire, test task, invite, rejection)
+
+### Legacy Cron (removed from vercel.json, routes still exist)
+- `GET /api/cron/process-outreach` — Legacy manual outreach queue
+- `GET /api/cron/process-ai-analysis` — Legacy AI analysis queue (replaced by fire-and-forget from apply)
+- `GET /api/cron/process-test-tasks` — Legacy test task sending
 
 ### Other
 - `GET /api/bookmarklet` — Generate bookmarklet code
@@ -260,8 +262,8 @@ middleware.ts                     # Auth middleware (protects /dashboard/*)
 ### Automated Pipeline Flow (automation_queue)
 The system automates the entire candidate funnel via `automation_queue` jobs processed by cron:
 
-1. **AI Analysis** (cron: process-ai-analysis): candidate gets `pipeline_stage: 'analyzed'`
-2. **Auto-outreach** (score ≥ 7 + request has `outreach_template_approved`): AI personalizes outreach template → sends via Telegram with inline "Так, цікаво!" / "Ні, дякую" buttons → `pipeline_stage: 'outreach_sent'`
+1. **AI Analysis** (fire-and-forget from `/api/candidates/apply` → `analyze-background`): candidate gets `pipeline_stage: 'analyzed'`
+2. **Auto-outreach** (score ≥ 7 + request has `outreach_template_approved`): queued immediately after analysis → cron sends via Telegram with inline "Так, цікаво!" / "Ні, дякую" buttons → `pipeline_stage: 'outreach_sent'`
 3. **Candidate responds** (Telegram callback_query): "Yes" → queues `send_questionnaire`; "No" → `pipeline_stage: 'outreach_declined'`
 4. **Questionnaire auto-sent**: uses request's configured competencies/questions → sends link via Telegram → `pipeline_stage: 'questionnaire_sent'`
 5. **Questionnaire completed** (score ≥ 7): queues `send_test_task` → `pipeline_stage: 'test_sent'`
@@ -279,7 +281,7 @@ The system automates the entire candidate funnel via `automation_queue` jobs pro
 - `components/dashboard/pipeline-timeline.tsx` — Visual pipeline progress
 
 **Automation triggers:**
-- AI analysis cron → queues `send_outreach` (if score ≥ 7 + approved template)
+- `analyze-background` (fire-and-forget) → queues `send_outreach` (if score ≥ 7 + approved template)
 - Telegram outreach callback "Yes" → queues `send_questionnaire`
 - Questionnaire submit → queues `send_test_task` (if questionnaire score ≥ 7)
 - Manager final decision → queues `send_invite` or `send_rejection` (24h delay)
