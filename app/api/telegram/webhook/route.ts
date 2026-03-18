@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/client';
 import { classifyResponse } from '@/lib/ai/classifyResponse';
-import { analyzeWithClaude } from '@/lib/ai/claude';
 import { generateTestTaskMessage } from '@/lib/outreach/message-generator';
+import { answerCandidateQuestion } from '@/lib/telegram/answer-question';
 import { Candidate, Request } from '@/lib/supabase/types';
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
@@ -220,26 +220,50 @@ async function handleMessage(message: TelegramMessage) {
 
     case 'positive_with_questions':
     case 'questions_about_job': {
-      // Get request info for context
+      // Fetch company info from settings
+      const { data: settingData } = await supabase
+        .from('settings')
+        .select('value')
+        .eq('key', 'company_info')
+        .single();
+
+      // Find the active vacancy for this candidate
       const { data: matchData } = await supabase
         .from('candidate_request_matches')
-        .select('request_id')
+        .select(`
+          request_id,
+          requests!inner (
+            title, description, salary_range, required_skills,
+            location, employment_type, remote_policy
+          )
+        `)
         .eq('candidate_id', candidate.id)
-        .order('match_score', { ascending: false })
+        .neq('status', 'rejected')
+        .order('created_at', { ascending: false })
         .limit(1)
         .single();
 
-      let req: Record<string, unknown> | null = null;
-      if (matchData) {
-        const { data: reqData } = await supabase
-          .from('requests')
-          .select('*')
-          .eq('id', (matchData as Record<string, unknown>).request_id as string)
-          .single();
-        req = reqData as Record<string, unknown> | null;
-      }
+      const vacancyContext = matchData
+        ? (() => {
+            const req = (matchData as Record<string, unknown>).requests as Record<string, unknown>;
+            return {
+              title: req.title as string,
+              description: (req.description as string | null) ?? null,
+              salary_range: (req.salary_range as string | null) ?? null,
+              required_skills: (req.required_skills as string | null) ?? null,
+              location: (req.location as string | null) ?? null,
+              employment_type: (req.employment_type as string | null) ?? null,
+              remote_policy: (req.remote_policy as string | null) ?? null,
+            };
+          })()
+        : undefined;
 
-      const aiReply = await generateAnswerToQuestions(text, candidate, req);
+      const aiReply = await answerCandidateQuestion(
+        text,
+        settingData?.value ?? '',
+        vacancyContext
+      );
+
       await sendTelegramMessage(chatId, aiReply);
 
       await supabase.from('candidate_conversations').insert({
@@ -493,29 +517,3 @@ async function editTelegramReplyMarkup(chatId: number, messageId: number) {
   );
 }
 
-async function generateAnswerToQuestions(
-  question: string,
-  candidate: Record<string, unknown>,
-  request: Record<string, unknown> | null
-): Promise<string> {
-  const prompt = `Ти — дружній HR-спеціаліст компанії Vamos (AI-first tech company).
-Кандидат ${candidate.first_name} задає питання. Дай коротку, дружню відповідь УКРАЇНСЬКОЮ.
-
-${request ? `Позиція: ${request.title}\nОпис: ${request.description || 'Не вказано'}` : ''}
-
-Питання кандидата: "${question}"
-
-Правила:
-- Відповідай коротко (2-3 речення максимум)
-- Будь дружнім, але не обіцяй конкретних умов (зарплату тощо)
-- Якщо не знаєш відповіді, скажи що уточниш у команди
-- Наприкінці м'яко запитай чи готові вони пройти тестове завдання
-- НЕ використовуй емодзі
-- Пиши ТІЛЬКИ текст відповіді`;
-
-  try {
-    return await analyzeWithClaude(prompt);
-  } catch {
-    return 'Дякую за запитання! Уточню деталі у команди і повернуся з відповіддю найближчим часом.';
-  }
-}

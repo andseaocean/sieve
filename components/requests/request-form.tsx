@@ -48,6 +48,7 @@ const requestSchema = z.object({
   job_description: z.string().optional(),
   outreach_template: z.string().optional(),
   outreach_template_approved: z.boolean().optional(),
+  salary_range: z.string().optional(),
 });
 
 type RequestFormData = z.infer<typeof requestSchema>;
@@ -228,6 +229,7 @@ export function RequestForm({ request, isEdit = false }: RequestFormProps) {
       job_description: request?.job_description || '',
       outreach_template: request?.outreach_template || '',
       outreach_template_approved: request?.outreach_template_approved || false,
+      salary_range: request?.salary_range || '',
     },
   });
 
@@ -247,6 +249,7 @@ export function RequestForm({ request, isEdit = false }: RequestFormProps) {
         job_description: data.job_description || null,
         outreach_template: data.outreach_template || null,
         outreach_template_approved: data.outreach_template_approved || false,
+        salary_range: data.salary_range || null,
         questionnaire_competency_ids: randomCompetencyIds,
         questionnaire_question_ids: selectedQuestionIds,
         questionnaire_custom_questions: [],
@@ -399,6 +402,18 @@ export function RequestForm({ request, isEdit = false }: RequestFormProps) {
                 placeholder="e.g., Київ, Remote, Україна"
                 {...register('location')}
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="salary_range">Зарплатна вилка</Label>
+              <Input
+                id="salary_range"
+                placeholder="напр. $1500–2500 або від $2000"
+                {...register('salary_range')}
+              />
+              <p className="text-xs text-muted-foreground">
+                Якщо не вказано — бот повідомить кандидатам, що вилка наразі погоджується
+              </p>
             </div>
 
             <div className="space-y-2">

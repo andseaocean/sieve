@@ -79,6 +79,7 @@ export type Database = {
           questionnaire_custom_questions: Json;
           outreach_template: string | null;
           outreach_template_approved: boolean;
+          salary_range: string | null;
         };
         Insert: {
           id?: string;
@@ -108,6 +109,7 @@ export type Database = {
           questionnaire_custom_questions?: Json;
           outreach_template?: string | null;
           outreach_template_approved?: boolean;
+          salary_range?: string | null;
         };
         Update: {
           id?: string;
@@ -137,6 +139,7 @@ export type Database = {
           questionnaire_custom_questions?: Json;
           outreach_template?: string | null;
           outreach_template_approved?: boolean;
+          salary_range?: string | null;
         };
       };
       candidates: {
@@ -758,3 +761,10 @@ export interface QuestionnaireAIEvaluation {
 export type AutomationQueue = Database['public']['Tables']['automation_queue']['Row'];
 export type AutomationQueueInsert = Database['public']['Tables']['automation_queue']['Insert'];
 export type AutomationQueueUpdate = Database['public']['Tables']['automation_queue']['Update'];
+
+// Settings type
+export interface Setting {
+  key: string;
+  value: string;
+  updated_at: string;
+}

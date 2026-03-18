@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { signOut } from 'next-auth/react';
+import { signOut, useSession } from 'next-auth/react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -24,6 +24,8 @@ const navigation = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { data: session } = useSession();
+  const isAdmin = (session?.user as { role?: string } | undefined)?.role === 'admin';
 
   return (
     <div className="flex h-full w-64 flex-col bg-white border-r border-gray-200">
@@ -59,6 +61,21 @@ export function Sidebar() {
             </Link>
           );
         })}
+
+        {isAdmin && (
+          <Link
+            href="/dashboard/settings"
+            className={cn(
+              'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+              pathname === '/dashboard/settings'
+                ? 'bg-primary text-white'
+                : 'text-gray-700 hover:bg-gray-100'
+            )}
+          >
+            <Settings className="h-5 w-5" />
+            Налаштування
+          </Link>
+        )}
       </nav>
 
       {/* Logout */}

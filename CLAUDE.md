@@ -36,6 +36,7 @@ app/
     candidates/                   # Candidate list + detail [id]
     requests/                     # Hiring requests list + new + detail [id]
     sourcing/                     # Quick check (bookmarklet) + setup
+    settings/                     # Company Info settings page (admin only)
     settings/questionnaire/       # Soft Skills admin (competency/question bank)
   (public)/                       # Public pages
     page.tsx                      # Landing page
@@ -78,6 +79,7 @@ lib/
   telegram/
     bot.ts                        # Bot init + polling mode
     types.ts                      # Telegram types
+    answer-question.ts            # AI answer generator (Company Info + vacancy context)
   automation/
     queue.ts                      # Automation queue utilities (add, fetch, mark, cancel)
     handlers.ts                   # 5 automation handlers (outreach, questionnaire, test, invite, rejection)
@@ -127,6 +129,7 @@ middleware.ts                     # Auth middleware (protects /dashboard/*)
 - job_description (AI-generated)
 - outreach_template (TEXT), outreach_template_approved (BOOLEAN, default false)
 - questionnaire_competency_ids (UUID[]), questionnaire_question_ids (UUID[]), questionnaire_custom_questions (JSONB)
+- salary_range (TEXT, nullable) — зарплатна вилка (напр. "$1500–2500")
 
 **candidates** — Applicants (warm + cold)
 - Contact: first_name, last_name, email, phone, telegram_username, telegram_chat_id (BIGINT), preferred_contact_methods
@@ -168,6 +171,10 @@ middleware.ts                     # Auth middleware (protects /dashboard/*)
 - status (pending|processing|completed|failed), scheduled_for (TIMESTAMPTZ), processed_at
 - error_message, retry_count, metadata (JSONB)
 - Indexes: status+scheduled_for, candidate_id+action_type (for duplicate detection)
+
+**settings** — Key-value store for platform settings
+- key (TEXT, PK), value (TEXT), updated_at (TIMESTAMPTZ)
+- Initial key: `company_info` — company description used by Telegram bot for answering candidate questions
 
 ### Soft Skills Questionnaire Tables
 
@@ -243,6 +250,10 @@ middleware.ts                     # Auth middleware (protects /dashboard/*)
 - `GET /api/cron/process-outreach` — Legacy manual outreach queue
 - `GET /api/cron/process-ai-analysis` — Legacy AI analysis queue (replaced by fire-and-forget from apply)
 - `GET /api/cron/process-test-tasks` — Legacy test task sending
+
+### Settings
+- `GET /api/settings?key=<key>` — Get setting by key (protected)
+- `PUT /api/settings` — Upsert setting `{ key, value }` (protected)
 
 ### Other
 - `GET /api/bookmarklet` — Generate bookmarklet code
@@ -333,7 +344,7 @@ The system automates the entire candidate funnel via `automation_queue` jobs pro
 - Incoming messages classified as: positive, negative, question, test_submission, deadline_request
 - On `positive` response: sends test task immediately (bypasses cron queue)
 - **Outreach callback_query handling:** `outreach_yes:{matchId}` → removes inline buttons, queues questionnaire; `outreach_no:{matchId}` → removes buttons, updates pipeline_stage to outreach_declined
-- Auto-responds to questions using AI
+- **Question handling** (`positive_with_questions`, `questions_about_job`): AI generates answer using `answerCandidateQuestion()` — fetches `company_info` from `settings` table + active vacancy context (title, salary_range, location, etc.)
 - Logs all conversations to candidate_conversations table
 
 ### Telegram Mini App Integration

@@ -63,6 +63,7 @@ export async function POST(request: NextRequest) {
       questionnaire_competency_ids: body.questionnaire_competency_ids || [],
       questionnaire_question_ids: body.questionnaire_question_ids || [],
       questionnaire_custom_questions: body.questionnaire_custom_questions || [],
+      salary_range: body.salary_range || null,
     };
 
     const supabase = createServerClient();

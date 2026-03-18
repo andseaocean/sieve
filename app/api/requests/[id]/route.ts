@@ -76,6 +76,9 @@ export async function PATCH(
     if (body.questionnaire_competency_ids !== undefined) updateData.questionnaire_competency_ids = body.questionnaire_competency_ids;
     if (body.questionnaire_question_ids !== undefined) updateData.questionnaire_question_ids = body.questionnaire_question_ids;
     if (body.questionnaire_custom_questions !== undefined) updateData.questionnaire_custom_questions = body.questionnaire_custom_questions;
+    if (body.salary_range !== undefined) updateData.salary_range = body.salary_range;
+    if (body.outreach_template !== undefined) updateData.outreach_template = body.outreach_template;
+    if (body.outreach_template_approved !== undefined) updateData.outreach_template_approved = body.outreach_template_approved;
 
     const supabase = createServerClient();
     const { data, error } = await supabase
