@@ -62,20 +62,18 @@ export function Sidebar() {
           );
         })}
 
-        {isAdmin && (
-          <Link
-            href="/dashboard/settings"
-            className={cn(
-              'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-              pathname === '/dashboard/settings'
-                ? 'bg-primary text-white'
-                : 'text-gray-700 hover:bg-gray-100'
-            )}
-          >
-            <Settings className="h-5 w-5" />
-            Налаштування
-          </Link>
-        )}
+        <Link
+          href="/dashboard/settings"
+          className={cn(
+            'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+            pathname === '/dashboard/settings'
+              ? 'bg-primary text-white'
+              : 'text-gray-700 hover:bg-gray-100'
+          )}
+        >
+          <Settings className="h-5 w-5" />
+          Налаштування
+        </Link>
       </nav>
 
       {/* Logout */}
