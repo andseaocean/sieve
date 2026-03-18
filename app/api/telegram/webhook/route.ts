@@ -221,11 +221,12 @@ async function handleMessage(message: TelegramMessage) {
     case 'positive_with_questions':
     case 'questions_about_job': {
       // Fetch company info from settings
-      const { data: settingData } = await supabase
+      const { data: settingRaw } = await supabase
         .from('settings')
         .select('value')
         .eq('key', 'company_info')
         .single();
+      const settingData = settingRaw as { value: string } | null;
 
       // Find the active vacancy for this candidate
       const { data: matchData } = await supabase
