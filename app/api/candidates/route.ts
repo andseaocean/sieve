@@ -17,11 +17,21 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search');
     const minScore = searchParams.get('minScore');
     const maxScore = searchParams.get('maxScore');
+    const requestId = searchParams.get('request_id');
     const sortBy = searchParams.get('sortBy') || 'created_at';
     const sortOrder = searchParams.get('sortOrder') || 'desc';
 
     const supabase = createServerClient();
     let query = supabase.from('candidates').select('*');
+
+    // Filter by primary vacancy
+    if (requestId && requestId !== 'all') {
+      if (requestId === 'none') {
+        query = query.is('primary_request_id', null);
+      } else {
+        query = query.eq('primary_request_id', requestId);
+      }
+    }
 
     // Apply filters
     if (category && category !== 'all') {

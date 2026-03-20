@@ -22,6 +22,12 @@ export async function POST(request: NextRequest) {
     const preferred_contact_methods_raw = formData.get('preferred_contact_methods') as string | null;
     const telegram_username = formData.get('telegram_username') as string | null;
 
+    // Vacancy selection
+    const applied_request_ids_raw = formData.get('applied_request_ids') as string | null;
+    const applied_request_ids: string[] = applied_request_ids_raw
+      ? JSON.parse(applied_request_ids_raw) as string[]
+      : [];
+
     // Parse contact methods (defaults to email if not provided)
     const preferred_contact_methods = preferred_contact_methods_raw
       ? JSON.parse(preferred_contact_methods_raw) as ('email' | 'telegram')[]
@@ -140,6 +146,8 @@ export async function POST(request: NextRequest) {
         preferred_contact_methods,
         telegram_username: telegram_username || null,
         outreach_status: 'pending',
+        applied_request_ids,
+        primary_request_id: null, // will be set after AI analysis
       } as never)
       .select()
       .single();
@@ -183,7 +191,11 @@ export async function POST(request: NextRequest) {
     const internalSecret = process.env.INTERNAL_API_SECRET || 'default-secret';
     fetch(`${appUrl}/api/candidates/${candidate.id}/analyze-background`, {
       method: 'POST',
-      headers: { 'x-internal-secret': internalSecret },
+      headers: {
+        'x-internal-secret': internalSecret,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ applied_request_ids }),
     }).catch((err) => {
       console.error('Failed to trigger background analysis:', err);
     });

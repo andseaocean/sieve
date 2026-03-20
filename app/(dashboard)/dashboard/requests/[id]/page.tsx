@@ -38,6 +38,7 @@ import {
 } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Pencil, Trash2, ArrowLeft, MapPin, Briefcase, Clock, AlertTriangle, Users, ExternalLink } from 'lucide-react';
+import { CandidateScanResults } from '@/components/requests/CandidateScanResults';
 
 interface MatchedCandidate {
   id: string;
@@ -218,6 +219,9 @@ export default function RequestDetailsPage() {
               {priorityLabels[request.priority]}
             </Badge>
           </div>
+
+          {/* Scan results from existing candidate base */}
+          <CandidateScanResults requestId={request.id} requestTitle={request.title} />
 
           {/* Matched Candidates */}
           <Card>

@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,6 +22,12 @@ interface FiltersState {
   search: string;
   sortBy: string;
   sortOrder: string;
+  request_id: string;
+}
+
+interface OpenRequest {
+  id: string;
+  title: string;
 }
 
 interface CandidateFiltersProps {
@@ -36,6 +43,17 @@ export function CandidateFilters({
   onApply,
   onClear,
 }: CandidateFiltersProps) {
+  const [requests, setRequests] = useState<OpenRequest[]>([]);
+
+  useEffect(() => {
+    fetch('/api/requests')
+      .then((r) => r.json())
+      .then((data: OpenRequest[]) => {
+        if (Array.isArray(data)) setRequests(data);
+      })
+      .catch(() => {});
+  }, []);
+
   const updateFilter = (key: keyof FiltersState, value: string) => {
     onFiltersChange({ ...filters, [key]: value });
   };
@@ -76,6 +94,26 @@ export function CandidateFilters({
               <SelectItem value="strong">Сильний</SelectItem>
               <SelectItem value="potential">Потенційний</SelectItem>
               <SelectItem value="not_fit">Не підходить</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Vacancy filter */}
+        <div className="space-y-2">
+          <Label>Вакансія</Label>
+          <Select
+            value={filters.request_id || 'all'}
+            onValueChange={(value) => updateFilter('request_id', value)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Всі вакансії" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Всі вакансії</SelectItem>
+              <SelectItem value="none">Без вакансії</SelectItem>
+              {requests.map((r) => (
+                <SelectItem key={r.id} value={r.id}>{r.title}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>

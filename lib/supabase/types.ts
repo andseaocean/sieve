@@ -201,6 +201,9 @@ export type Database = {
           resume_extracted_data: ResumeData | null;
           questionnaire_status: QuestionnaireStatus | null;
           pipeline_stage: PipelineStage;
+          // Vacancy binding fields (migration 015)
+          primary_request_id: string | null;
+          applied_request_ids: string[];
         };
         Insert: {
           id?: string;
@@ -260,6 +263,9 @@ export type Database = {
           resume_extracted_data?: ResumeData | null;
           questionnaire_status?: QuestionnaireStatus | null;
           pipeline_stage?: PipelineStage;
+          // Vacancy binding fields (migration 015)
+          primary_request_id?: string | null;
+          applied_request_ids?: string[];
         };
         Update: {
           id?: string;
@@ -319,6 +325,41 @@ export type Database = {
           resume_extracted_data?: ResumeData | null;
           questionnaire_status?: QuestionnaireStatus | null;
           pipeline_stage?: PipelineStage;
+          // Vacancy binding fields (migration 015)
+          primary_request_id?: string | null;
+          applied_request_ids?: string[];
+        };
+      };
+      candidate_request_history: {
+        Row: {
+          id: string;
+          candidate_id: string;
+          from_request_id: string | null;
+          to_request_id: string | null;
+          changed_by: string | null;
+          reason: 'initial_application' | 'manager_reassign' | 'new_request_scan' | 'auto_best_match';
+          notes: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          candidate_id: string;
+          from_request_id?: string | null;
+          to_request_id?: string | null;
+          changed_by?: string | null;
+          reason: 'initial_application' | 'manager_reassign' | 'new_request_scan' | 'auto_best_match';
+          notes?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          candidate_id?: string;
+          from_request_id?: string | null;
+          to_request_id?: string | null;
+          changed_by?: string | null;
+          reason?: 'initial_application' | 'manager_reassign' | 'new_request_scan' | 'auto_best_match';
+          notes?: string | null;
+          created_at?: string;
         };
       };
       candidate_conversations: {
@@ -785,3 +826,7 @@ export interface Setting {
   value: string;
   updated_at: string;
 }
+
+// Vacancy binding types (migration 015)
+export type CandidateRequestHistory = Database['public']['Tables']['candidate_request_history']['Row'];
+export type CandidateRequestHistoryInsert = Database['public']['Tables']['candidate_request_history']['Insert'];

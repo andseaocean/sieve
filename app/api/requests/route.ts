@@ -78,6 +78,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // Fire-and-forget: scan existing candidates for this new request
+    const newRequestId = (data as { id: string }).id;
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000';
+    const internalSecret = process.env.INTERNAL_API_SECRET || 'default-secret';
+    fetch(`${appUrl}/api/requests/${newRequestId}/scan-candidates`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-internal-secret': internalSecret,
+      },
+    }).catch((err) => {
+      console.error('Failed to trigger scan-candidates:', err);
+    });
+
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
     console.error('Error in POST /api/requests:', error);

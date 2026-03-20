@@ -40,6 +40,9 @@ import {
   Loader2,
 } from 'lucide-react';
 import { ResumeViewer } from '@/components/candidates/ResumeViewer';
+import { VacancyBlock } from '@/components/candidates/VacancyBlock';
+import { MatchedVacancies, MatchedVacancy } from '@/components/candidates/MatchedVacancies';
+import { RequestHistory, RequestHistoryEntry } from '@/components/candidates/RequestHistory';
 import { FinalDecisionPanel } from '@/components/dashboard/final-decision-panel';
 import { PipelineTimeline } from '@/components/dashboard/pipeline-timeline';
 import type { PipelineStage } from '@/lib/supabase/types';
@@ -65,6 +68,12 @@ export default function CandidateDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<string>('new');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [primaryRequestId, setPrimaryRequestId] = useState<string | null>(null);
+  const [primaryRequestTitle, setPrimaryRequestTitle] = useState<string | null>(null);
+  const [primaryMatchScore, setPrimaryMatchScore] = useState<number | null>(null);
+  const [primaryRequestStatus, setPrimaryRequestStatus] = useState<string | null>(null);
+  const [matchedVacancies, setMatchedVacancies] = useState<MatchedVacancy[]>([]);
+  const [requestHistory, setRequestHistory] = useState<RequestHistoryEntry[]>([]);
 
   const candidateId = params.id as string;
 
@@ -81,11 +90,46 @@ export default function CandidateDetailsPage() {
         const candidateData = await candidateRes.json();
         setCandidate(candidateData);
 
-        // Fetch comments
-        const commentsRes = await fetch(`/api/candidates/${candidateId}/comments`);
+        // Set primary request info from candidate data
+        const cData = candidateData as Candidate & {
+          primary_request_id?: string | null;
+        };
+        setPrimaryRequestId(cData.primary_request_id ?? null);
+
+        // Fetch primary request details + matched vacancies + history in parallel
+        const [commentsRes, vacancyRes, matchesRes, historyRes] = await Promise.all([
+          fetch(`/api/candidates/${candidateId}/comments`),
+          cData.primary_request_id
+            ? fetch(`/api/requests/${cData.primary_request_id}`)
+            : Promise.resolve(null),
+          fetch(`/api/candidates/${candidateId}/vacancy-matches`),
+          fetch(`/api/candidates/${candidateId}/request-history`),
+        ]);
+
         if (commentsRes.ok) {
           const commentsData = await commentsRes.json();
           setComments(commentsData);
+        }
+
+        if (vacancyRes?.ok) {
+          const vData = await vacancyRes.json();
+          setPrimaryRequestTitle(vData.title ?? null);
+          setPrimaryRequestStatus(vData.status ?? null);
+          // Find match score for primary
+          if (matchesRes.ok) {
+            const mData = await matchesRes.json() as MatchedVacancy[];
+            setMatchedVacancies(mData);
+            const primary = mData.find((m) => m.request_id === cData.primary_request_id);
+            setPrimaryMatchScore(primary?.match_score ?? null);
+          }
+        } else if (matchesRes.ok) {
+          const mData = await matchesRes.json() as MatchedVacancy[];
+          setMatchedVacancies(mData);
+        }
+
+        if (historyRes.ok) {
+          const hData = await historyRes.json() as RequestHistoryEntry[];
+          setRequestHistory(hData);
         }
 
       } catch (error) {
@@ -202,6 +246,35 @@ export default function CandidateDetailsPage() {
               </CardContent>
             </Card>
           )}
+
+          {/* Vacancy Block */}
+          <VacancyBlock
+            candidateId={candidateId}
+            primaryRequestId={primaryRequestId}
+            primaryRequestTitle={primaryRequestTitle}
+            primaryMatchScore={primaryMatchScore}
+            primaryRequestStatus={primaryRequestStatus}
+            pipelineStage={candidate.pipeline_stage as PipelineStage}
+            onVacancyChanged={(newId) => {
+              setPrimaryRequestId(newId);
+              if (!newId) {
+                setPrimaryRequestTitle(null);
+                setPrimaryMatchScore(null);
+                setPrimaryRequestStatus(null);
+              }
+            }}
+          />
+
+          {/* Also matches */}
+          <MatchedVacancies
+            candidateId={candidateId}
+            matches={matchedVacancies}
+            primaryRequestId={primaryRequestId}
+            onVacancyChanged={(newId) => setPrimaryRequestId(newId)}
+          />
+
+          {/* Request history */}
+          <RequestHistory history={requestHistory} />
 
           {/* Main info card */}
           <Card>

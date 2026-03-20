@@ -15,6 +15,55 @@ import { downloadResumePDFAsBase64 } from '@/lib/pdf/downloader';
 
 const USE_MOCK_AI = process.env.NODE_ENV === 'development' && !process.env.ANTHROPIC_API_KEY;
 
+// Helper: run matching for a single request, upsert to candidate_request_matches
+async function matchCandidateToRequest(
+  supabase: ReturnType<typeof createServiceRoleClient>,
+  candidateId: string,
+  candidateForAnalysis: Candidate,
+  analysis: { score: number; category: string; summary: string; strengths: string[] },
+  requestData: Request,
+): Promise<number> {
+  let matchResult;
+  if (USE_MOCK_AI) {
+    matchResult = MOCK_MATCH_RESULT;
+  } else {
+    const matchPrompt = MATCH_CANDIDATE_TO_REQUEST_PROMPT(candidateForAnalysis, analysis, requestData);
+    const matchResponse = await analyzeWithClaude(matchPrompt);
+    matchResult = parseAIMatchResult(matchResponse);
+  }
+
+  const { data: existingMatchData } = await supabase
+    .from('candidate_request_matches')
+    .select('id')
+    .eq('candidate_id', candidateId)
+    .eq('request_id', requestData.id)
+    .single();
+
+  const existingMatch = existingMatchData as { id: string } | null;
+
+  if (existingMatch) {
+    await supabase
+      .from('candidate_request_matches')
+      .update({
+        match_score: matchResult.match_score,
+        match_explanation: `${matchResult.alignment}\n\nMissing: ${matchResult.missing}`,
+      } as never)
+      .eq('id', existingMatch.id);
+  } else {
+    await supabase
+      .from('candidate_request_matches')
+      .insert({
+        candidate_id: candidateId,
+        request_id: requestData.id,
+        match_score: matchResult.match_score,
+        match_explanation: `${matchResult.alignment}\n\nMissing: ${matchResult.missing}`,
+        status: 'new',
+      } as never);
+  }
+
+  return matchResult.match_score;
+}
+
 export async function POST(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
@@ -29,6 +78,17 @@ export async function POST(
   if (authHeader !== internalSecret) {
     console.warn('Unauthorized background analysis attempt for candidate', candidateId);
     // Still allow for now, but log it
+  }
+
+  // Read body (may contain applied_request_ids)
+  let appliedRequestIds: string[] = [];
+  try {
+    const body = await request.json().catch(() => ({}));
+    if (Array.isArray(body?.applied_request_ids)) {
+      appliedRequestIds = body.applied_request_ids as string[];
+    }
+  } catch {
+    // no body — ok
   }
 
   try {
@@ -51,7 +111,14 @@ export async function POST(
       why_vamos_translated?: string;
       key_skills_translated?: string;
       original_language?: string;
+      applied_request_ids?: string[];
     };
+
+    // Merge applied_request_ids from body and from DB record
+    const dbApplied = Array.isArray(candidate.applied_request_ids) ? candidate.applied_request_ids : [];
+    if (appliedRequestIds.length === 0 && dbApplied.length > 0) {
+      appliedRequestIds = dbApplied;
+    }
 
     // Run translation first if needed
     if (candidate.original_language && candidate.original_language !== 'uk' && !candidate.about_text_translated) {
@@ -82,7 +149,6 @@ export async function POST(
           } as never)
           .eq('id', candidateId);
 
-        // Update local object for AI analysis
         (candidate as { about_text_translated?: string }).about_text_translated = translated.bio_translated || candidate.about_text || undefined;
         (candidate as { why_vamos_translated?: string }).why_vamos_translated = translated.why_vamos_translated || candidate.why_vamos || undefined;
       } catch (translationError) {
@@ -90,14 +156,13 @@ export async function POST(
       }
     }
 
-    // Create a modified candidate object for AI analysis using translated content
     const candidateForAnalysis = {
       ...candidate,
       about_text: candidate.about_text_translated || candidate.about_text,
       why_vamos: candidate.why_vamos_translated || candidate.why_vamos,
     };
 
-    // Download PDF resume as base64 for Claude (no pdf-parse needed)
+    // Download PDF resume as base64 for Claude
     let pdfBase64: string | null = null;
     const candidateResumeUrl = (candidate as Candidate & { resume_url?: string }).resume_url;
 
@@ -126,7 +191,67 @@ export async function POST(
       analysis = parseAIAnalysisResult(response);
     }
 
-    // Update candidate with AI results + set pipeline_stage to analyzed
+    // Fetch all active requests
+    const { data: allRequestsData } = await supabase
+      .from('requests')
+      .select('*')
+      .eq('status', 'active');
+
+    const allRequests = (allRequestsData ?? []) as Request[];
+
+    const analysisForMatch = {
+      score: analysis.score,
+      category: analysis.category,
+      summary: analysis.summary,
+      strengths: analysis.strengths || [],
+    };
+
+    // --- Determine which requests to match first (applied) and which later (rest) ---
+    const appliedSet = new Set(appliedRequestIds);
+    const targetRequests = appliedRequestIds.length > 0
+      ? allRequests.filter((r) => appliedSet.has(r.id))
+      : allRequests; // "не знаю" — match all
+
+    const restRequests = allRequests.filter((r) => !appliedSet.has(r.id));
+
+    // Step 1: Match against applied (or all if "не знаю") requests
+    let primaryRequestId: string | null = null;
+    let primaryScore = 0;
+
+    if (targetRequests.length > 0) {
+      console.log(`Background AI: Matching candidate to ${targetRequests.length} target requests`);
+
+      const scoreMap: Record<string, number> = {};
+      for (const req of targetRequests) {
+        try {
+          const score = await matchCandidateToRequest(supabase, candidateId, candidateForAnalysis as Candidate, analysisForMatch, req);
+          scoreMap[req.id] = score;
+          console.log(`Background AI: Match for request ${req.id}: ${score}`);
+        } catch (err) {
+          console.error(`Background AI: Match failed for request ${req.id}`, err);
+        }
+      }
+
+      // Choose primary: highest score (tie-break: first in applied_request_ids array)
+      const minScoreForPrimary = appliedRequestIds.length > 0 ? 0 : 70; // if "не знаю" require score ≥ 70
+      let bestReqId: string | null = null;
+      let bestScore = minScoreForPrimary - 1;
+
+      for (const reqId of (appliedRequestIds.length > 0 ? appliedRequestIds : Object.keys(scoreMap))) {
+        const s = scoreMap[reqId] ?? 0;
+        if (s > bestScore) {
+          bestScore = s;
+          bestReqId = reqId;
+        }
+      }
+
+      if (bestReqId) {
+        primaryRequestId = bestReqId;
+        primaryScore = bestScore;
+      }
+    }
+
+    // Update candidate with AI results + primary_request_id + pipeline_stage
     await supabase
       .from('candidates')
       .update({
@@ -138,79 +263,69 @@ export async function POST(
         ai_recommendation: analysis.recommendation || null,
         ai_reasoning: analysis.reasoning || null,
         pipeline_stage: 'analyzed',
+        primary_request_id: primaryRequestId,
       } as never)
       .eq('id', candidateId);
 
-    console.log('Background AI: Analysis complete for candidate', candidateId, 'Score:', analysis.score);
+    console.log('Background AI: Analysis complete for candidate', candidateId, 'Score:', analysis.score, 'Primary request:', primaryRequestId);
 
-    // Now match to all active requests
-    const { data: requestsData } = await supabase
-      .from('requests')
-      .select('*')
-      .eq('status', 'open');
+    // Record in candidate_request_history
+    if (primaryRequestId) {
+      await supabase
+        .from('candidate_request_history')
+        .insert({
+          candidate_id: candidateId,
+          from_request_id: null,
+          to_request_id: primaryRequestId,
+          changed_by: null,
+          reason: 'auto_best_match',
+          notes: `AI match score: ${primaryScore}`,
+        } as never);
+    }
 
-    if (requestsData && requestsData.length > 0) {
-      console.log(`Background AI: Matching candidate to ${requestsData.length} open requests`);
-
-      for (const requestData of requestsData) {
-        const request = requestData as Request;
-
-        const candidateAnalysis = {
-          score: analysis.score,
-          category: analysis.category,
-          summary: analysis.summary,
-          strengths: analysis.strengths || [],
-        };
-
-        let matchResult;
-        if (USE_MOCK_AI) {
-          matchResult = MOCK_MATCH_RESULT;
-        } else {
-          const matchPrompt = MATCH_CANDIDATE_TO_REQUEST_PROMPT(candidateForAnalysis as Candidate, candidateAnalysis, request);
-          const matchResponse = await analyzeWithClaude(matchPrompt);
-          matchResult = parseAIMatchResult(matchResponse);
+    // Step 2: Scan remaining requests asynchronously (fire-and-forget)
+    if (restRequests.length > 0) {
+      setTimeout(async () => {
+        for (const req of restRequests) {
+          try {
+            await matchCandidateToRequest(supabase, candidateId, candidateForAnalysis as Candidate, analysisForMatch, req);
+          } catch (err) {
+            console.error(`Background AI (rest scan): Match failed for request ${req.id}`, err);
+          }
         }
-
-        // Check if match already exists
-        const { data: existingMatchData } = await supabase
-          .from('candidate_request_matches')
-          .select('id')
-          .eq('candidate_id', candidateId)
-          .eq('request_id', request.id)
-          .single();
-
-        const existingMatch = existingMatchData as { id: string } | null;
-
-        if (existingMatch) {
-          await supabase
-            .from('candidate_request_matches')
-            .update({
-              match_score: matchResult.match_score,
-              match_explanation: `${matchResult.alignment}\n\nMissing: ${matchResult.missing}`,
-            } as never)
-            .eq('id', existingMatch.id);
-        } else {
-          await supabase
-            .from('candidate_request_matches')
-            .insert({
-              candidate_id: candidateId,
-              request_id: request.id,
-              match_score: matchResult.match_score,
-              match_explanation: `${matchResult.alignment}\n\nMissing: ${matchResult.missing}`,
-              status: 'new',
-            } as never);
-        }
-
-        console.log(`Background AI: Match created for request ${request.id} with score ${matchResult.match_score}`);
-      }
+        console.log(`Background AI: Completed rest-scan for ${restRequests.length} requests for candidate ${candidateId}`);
+      }, 0);
     }
 
     // Trigger outreach automation for strong candidates (score >= 7)
-    if (analysis.score >= 7 && requestsData && requestsData.length > 0) {
+    if (analysis.score >= 7 && primaryRequestId) {
       try {
         const { addToAutomationQueue } = await import('@/lib/automation/queue');
 
-        // Find the best match with an approved outreach template
+        const { data: reqData } = await supabase
+          .from('requests')
+          .select('id, outreach_template_approved')
+          .eq('id', primaryRequestId)
+          .eq('outreach_template_approved', true)
+          .single();
+
+        if (reqData) {
+          await addToAutomationQueue({
+            supabase,
+            actionType: 'send_outreach',
+            candidateId,
+            requestId: primaryRequestId,
+          });
+          console.log(`Background AI: Queued outreach for candidate ${candidateId}, request ${primaryRequestId}`);
+        }
+      } catch (outreachError) {
+        console.error('Background AI: Failed to queue outreach:', outreachError);
+      }
+    } else if (analysis.score >= 7 && !primaryRequestId && allRequests.length > 0) {
+      // Fallback: find best match from all requests for outreach
+      try {
+        const { addToAutomationQueue } = await import('@/lib/automation/queue');
+
         const { data: bestMatchData } = await supabase
           .from('candidate_request_matches')
           .select('request_id, match_score')
@@ -218,7 +333,6 @@ export async function POST(
           .order('match_score', { ascending: false })
           .limit(10);
 
-        // Check which matched requests have approved outreach templates
         if (bestMatchData && bestMatchData.length > 0) {
           for (const match of bestMatchData as { request_id: string; match_score: number }[]) {
             const { data: reqData } = await supabase
@@ -235,13 +349,13 @@ export async function POST(
                 candidateId,
                 requestId: match.request_id,
               });
-              console.log(`Background AI: Queued outreach for candidate ${candidateId}, request ${match.request_id}`);
-              break; // Only queue for the best matching request
+              console.log(`Background AI: Queued outreach (fallback) for candidate ${candidateId}, request ${match.request_id}`);
+              break;
             }
           }
         }
       } catch (outreachError) {
-        console.error('Background AI: Failed to queue outreach:', outreachError);
+        console.error('Background AI: Failed to queue outreach (fallback):', outreachError);
       }
     }
 
@@ -251,6 +365,7 @@ export async function POST(
       success: true,
       score: analysis.score,
       category: analysis.category,
+      primary_request_id: primaryRequestId,
     });
   } catch (error) {
     console.error('Background AI: Error processing candidate', candidateId, error);

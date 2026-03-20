@@ -47,6 +47,13 @@ app/
   api/                            # API routes (see below)
 
 components/
+  candidates/
+    VacancySelector.tsx           # Vacancy multi-select for application form
+    VacancyBlock.tsx              # Primary vacancy block in candidate detail
+    MatchedVacancies.tsx          # "Also fits" block in candidate detail
+    RequestHistory.tsx            # Collapsible vacancy change history
+  requests/
+    CandidateScanResults.tsx      # Base scan results on vacancy page
   ui/                             # shadcn/ui primitives
   candidates/                     # CandidateCard, CandidateFilters, ResumeViewer, etc.
   dashboard/                      # Header, Sidebar
@@ -108,7 +115,7 @@ lib/
   language-utils.ts               # Language detection
   utils.ts                        # General utilities
 
-supabase/migrations/              # SQL migration files (002-012)
+supabase/migrations/              # SQL migration files (002-015)
 public/bookmarklet/               # Bookmarklet source (vamos-quick-check.js)
 scripts/start-bot.ts              # Telegram bot start script
 middleware.ts                     # Auth middleware (protects /dashboard/*)
@@ -141,6 +148,10 @@ middleware.ts                     # Auth middleware (protects /dashboard/*)
 - Test task: test_task_status, test_task_sent_at, test_task_original_deadline, test_task_current_deadline, test_task_extensions_count, test_task_submitted_at, test_task_submission_text, test_task_candidate_feedback, test_task_ai_score, test_task_ai_evaluation, test_task_late_by_hours
 - Questionnaire: questionnaire_status (sent|in_progress|completed|expired|skipped)
 - Pipeline: pipeline_stage (new|analyzed|outreach_sent|questionnaire_sent|questionnaire_done|test_sent|test_done|interview|rejected|hired|outreach_declined)
+- **Vacancy binding (migration 015):** primary_request_id (UUID FK → requests, nullable), applied_request_ids (UUID[]) — vacancies selected at application time
+
+**candidate_request_history** — Vacancy change log (migration 015)
+- candidate_id, from_request_id, to_request_id, changed_by (manager FK), reason ('initial_application'|'manager_reassign'|'new_request_scan'|'auto_best_match'), notes, created_at
 
 **candidate_request_matches** — Many-to-many candidates<->requests
 - candidate_id, request_id, match_score (0-100), match_explanation
@@ -192,8 +203,11 @@ middleware.ts                     # Auth middleware (protects /dashboard/*)
 ## API Routes
 
 ### Candidates
-- `POST /api/candidates/apply` — Submit application (public)
-- `GET /api/candidates` — List (filters: category, source, score, search, sort)
+- `POST /api/candidates/apply` — Submit application (public); accepts `applied_request_ids: UUID[]`
+- `GET /api/candidates` — List (filters: category, source, score, search, sort, request_id for primary vacancy filter)
+- `PUT /api/candidates/[id]/primary-request` — Change primary vacancy (records history)
+- `GET /api/candidates/[id]/vacancy-matches` — All matched vacancies with scores
+- `GET /api/candidates/[id]/request-history` — Vacancy change history
 - `GET/PUT/DELETE /api/candidates/[id]` — CRUD
 - `POST /api/candidates/[id]/analyze-background` — Background AI analysis (fire-and-forget from apply, triggers outreach)
 - `GET /api/candidates/[id]/resume` — PDF resume proxy/viewer
@@ -202,8 +216,10 @@ middleware.ts                     # Auth middleware (protects /dashboard/*)
 - `POST /api/candidates/[id]/final-decision` — Manager invite/reject decision (queues automation)
 
 ### Requests
-- `GET/POST /api/requests` — List / Create
+- `GET /api/requests/open` — Public list of active vacancies (no auth) for application form
+- `GET/POST /api/requests` — List / Create (POST auto-triggers scan-candidates fire-and-forget)
 - `GET/PUT/DELETE /api/requests/[id]` — CRUD
+- `POST /api/requests/[id]/scan-candidates` — Scan candidate base for a vacancy (auth or internal secret)
 - `GET /api/requests/[id]/matches` — Matched candidates
 - `POST /api/requests/generate-job-description` — AI job description
 
@@ -405,7 +421,7 @@ Ukrainian (primary), English, Turkish, Spanish — detection via `lib/language-u
 - **Supabase client:** Use `createClient()` from `lib/supabase/client.ts` for regular requests; use service role client (from `SUPABASE_SERVICE_ROLE_KEY`) in cron jobs and webhook handler to bypass RLS.
 - **AI calls:** Text-only via `analyzeWithClaude()`, with PDF via `analyzeWithClaudeAndPDF()` in `lib/ai/claude.ts`. Prompts live in `lib/ai/prompts.ts`, outreach/decision prompts in `lib/ai/outreach-prompts.ts`.
 - **DB types:** `lib/supabase/types.ts` defines all table types — update when schema changes. Use `as never` cast for Supabase insert/update objects when TypeScript complains about strict typing.
-- **Migrations:** SQL files in `supabase/migrations/`, numbered sequentially (002-012).
+- **Migrations:** SQL files in `supabase/migrations/`, numbered sequentially (002-015).
 - **Components:** shadcn/ui in `components/ui/`, feature components grouped by domain.
 - **Vercel Hobby plan:** Cron jobs limited to once per day (`0 10 * * *`). Critical time-sensitive operations (like test task sending) should be handled immediately in webhook/API handlers, not via cron.
 

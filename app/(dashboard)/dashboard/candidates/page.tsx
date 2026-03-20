@@ -15,6 +15,7 @@ interface FiltersState {
   search: string;
   sortBy: string;
   sortOrder: string;
+  request_id: string;
 }
 
 const defaultFilters: FiltersState = {
@@ -25,6 +26,7 @@ const defaultFilters: FiltersState = {
   search: '',
   sortBy: 'created_at',
   sortOrder: 'desc',
+  request_id: 'all',
 };
 
 export default function CandidatesPage() {
@@ -42,6 +44,7 @@ export default function CandidatesPage() {
       if (filters.minScore) params.set('minScore', filters.minScore);
       if (filters.maxScore) params.set('maxScore', filters.maxScore);
       if (filters.search) params.set('search', filters.search);
+      if (filters.request_id && filters.request_id !== 'all') params.set('request_id', filters.request_id);
       params.set('sortBy', filters.sortBy);
       params.set('sortOrder', filters.sortOrder);
 

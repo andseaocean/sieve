@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { StepIndicator } from '@/components/public/step-indicator';
+import { VacancySelector, OpenVacancy } from '@/components/candidates/VacancySelector';
 import { toast } from 'sonner';
 import { Loader2, ArrowRight, ArrowLeft, Mail, MessageCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -65,12 +66,23 @@ export default function ApplyPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [isTelegram, setIsTelegram] = useState(false);
+  const [openVacancies, setOpenVacancies] = useState<OpenVacancy[]>([]);
+  const [selectedVacancyIds, setSelectedVacancyIds] = useState<string[]>([]);
+  const [vacancyError, setVacancyError] = useState<string | null>(null);
 
   useEffect(() => {
     const tg = window.Telegram?.WebApp;
     if (tg && tg.initData) {
       setIsTelegram(true);
     }
+  }, []);
+
+  // Fetch open vacancies
+  useEffect(() => {
+    fetch('/api/requests/open')
+      .then((r) => r.json())
+      .then((data: OpenVacancy[]) => setOpenVacancies(Array.isArray(data) ? data : []))
+      .catch(() => setOpenVacancies([]));
   }, []);
 
   const {
@@ -106,7 +118,13 @@ export default function ApplyPage() {
     let fieldsToValidate: (keyof ApplicationFormData)[] = [];
 
     switch (currentStep) {
-      case 1:
+      case 1: {
+        // Validate vacancy selection first (if there are open vacancies)
+        if (openVacancies.length > 0 && selectedVacancyIds.length === 0) {
+          setVacancyError('Оберіть вакансію або відмітьте "Ще не знаю"');
+          return false;
+        }
+        setVacancyError(null);
         fieldsToValidate = ['first_name', 'last_name', 'email'];
         if (!isTelegram) {
           fieldsToValidate.push('preferred_contact_methods');
@@ -115,6 +133,7 @@ export default function ApplyPage() {
           }
         }
         break;
+      }
       case 2:
         fieldsToValidate = ['about_text', 'why_vamos'];
         break;
@@ -178,6 +197,8 @@ export default function ApplyPage() {
       if (data.telegram_username) {
         formData.append('telegram_username', data.telegram_username);
       }
+      // Vacancy selection
+      formData.append('applied_request_ids', JSON.stringify(selectedVacancyIds));
 
       const response = await fetch('/api/candidates/apply', {
         method: 'POST',
@@ -228,6 +249,23 @@ export default function ApplyPage() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
+                    {/* Vacancy selector — shown only when there are open vacancies */}
+                    {openVacancies.length > 0 && (
+                      <div className="space-y-2 pb-4 border-b">
+                        <Label>На яку вакансію подаєтесь? *</Label>
+                        <VacancySelector
+                          vacancies={openVacancies}
+                          selected={selectedVacancyIds}
+                          onChange={(ids) => {
+                            setSelectedVacancyIds(ids);
+                            setVacancyError(null);
+                          }}
+                          allowUnknown={true}
+                          error={vacancyError ?? undefined}
+                        />
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="first_name">Ім&apos;я *</Label>
