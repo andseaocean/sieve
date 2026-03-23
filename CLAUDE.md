@@ -38,22 +38,23 @@ app/
     sourcing/                     # Quick check (bookmarklet) + setup
     settings/                     # Company Info settings page (admin only)
     settings/questionnaire/       # Soft Skills admin (competency/question bank)
-  (public)/                       # Public pages
-    page.tsx                      # Landing page
-    apply/                        # Multi-step application form (4 steps)
-    thank-you/                    # Success page
+  (public)/                       # Minimal layout wrapper (no public pages; questionnaire & submit-test are top-level)
+  page.tsx                        # Root redirect → /login
   submit-test/                    # Test task submission page
   questionnaire/[token]/          # Public questionnaire form (token-based access)
   api/                            # API routes (see below)
 
 components/
   candidates/
-    VacancySelector.tsx           # Vacancy multi-select for application form
+    VacancySelector.tsx           # Vacancy multi-select (used in application form via Telegram Mini App)
     VacancyBlock.tsx              # Primary vacancy block in candidate detail
     MatchedVacancies.tsx          # "Also fits" block in candidate detail
     RequestHistory.tsx            # Collapsible vacancy change history
   requests/
     CandidateScanResults.tsx      # Base scan results on vacancy page
+    RequestCard.tsx               # Vacancy card (list view; shows author + manager count)
+    RequestTeam.tsx               # "Команда" sidebar block (author + managers, add/remove)
+    RequestForm.tsx               # Create/edit vacancy form
   ui/                             # shadcn/ui primitives
   candidates/                     # CandidateCard, CandidateFilters, ResumeViewer, etc.
   dashboard/                      # Header, Sidebar
@@ -67,8 +68,7 @@ components/
     competency-dialog.tsx         # Create/edit competency dialog
     question-dialog.tsx           # Create/edit question dialog
   outreach/                       # Outreach management UI
-  public/                         # Landing page components
-  requests/                       # RequestForm, RequestDetail
+  requests/                       # RequestForm, RequestCard, RequestTeam
   sourcing/                       # ProfilePreview, EvaluationCard, SaveCandidateDialog
 
 lib/
@@ -137,6 +137,13 @@ middleware.ts                     # Auth middleware (protects /dashboard/*)
 - outreach_template (TEXT), outreach_template_approved (BOOLEAN, default false)
 - questionnaire_competency_ids (UUID[]), questionnaire_question_ids (UUID[]), questionnaire_custom_questions (JSONB)
 - salary_range (TEXT, nullable) — зарплатна вилка (напр. "$1500–2500")
+- **created_by** (UUID FK → managers, nullable, migration 016) — автор вакансії; існуючі записи = NULL → "Автор невідомий"
+
+**request_managers** — Менеджери вакансії many-to-many (migration 016)
+- id, request_id (FK → requests), manager_id (FK → managers), added_at, added_by (FK → managers)
+- UNIQUE(request_id, manager_id)
+- Автор авто-додається при створенні вакансії
+- Автора не можна видалити (перевірка в DELETE /api/requests/[id]/managers/[managerId])
 
 **candidates** — Applicants (warm + cold)
 - Contact: first_name, last_name, email, phone, telegram_username, telegram_chat_id (BIGINT), preferred_contact_methods
@@ -215,13 +222,19 @@ middleware.ts                     # Auth middleware (protects /dashboard/*)
 - `GET /api/candidates/[id]/match-info` — Best match request_id + final_decision
 - `POST /api/candidates/[id]/final-decision` — Manager invite/reject decision (queues automation)
 
+### Managers
+- `GET /api/managers/search?q=` — Search managers by name/email (≥2 chars, ILIKE); returns id, name, email
+
 ### Requests
-- `GET /api/requests/open` — Public list of active vacancies (no auth) for application form
-- `GET/POST /api/requests` — List / Create (POST auto-triggers scan-candidates fire-and-forget)
-- `GET/PUT/DELETE /api/requests/[id]` — CRUD
+- `GET /api/requests/open` — Public list of active vacancies (no auth) for Telegram Mini App apply form
+- `GET /api/requests` — List all; includes created_by_manager, request_managers; supports `?filter=mine`
+- `POST /api/requests` — Create; sets created_by from session, auto-adds creator to request_managers
+- `GET/PATCH/DELETE /api/requests/[id]` — CRUD; GET includes created_by_manager + request_managers with manager info
 - `POST /api/requests/[id]/scan-candidates` — Scan candidate base for a vacancy (auth or internal secret)
 - `GET /api/requests/[id]/matches` — Matched candidates
 - `POST /api/requests/generate-job-description` — AI job description
+- `POST /api/requests/[id]/managers` — Add manager to vacancy (body: { manager_id })
+- `DELETE /api/requests/[id]/managers/[managerId]` — Remove manager (forbidden if managerId === created_by)
 
 ### AI
 - `POST /api/ai/analyze` — Analyze candidate profile
@@ -275,6 +288,10 @@ middleware.ts                     # Auth middleware (protects /dashboard/*)
 - `GET /api/bookmarklet` — Generate bookmarklet code
 
 ## Key Business Logic
+
+### User Management
+Платформа є закритим інструментом для менеджерів Vamos. Публічна частина (лендінг, форма заявки) видалена — прийом заявок відбувається виключно через Telegram Mini App. Нових менеджерів адміністратор додає **вручну через Supabase Dashboard → Table Editor → таблиця managers**:
+- name, email, password_hash (plain text, MVP), role (admin|manager), created_at (auto)
 
 ### AI Scoring System
 - **1-3:** Not a fit (auto-reject)

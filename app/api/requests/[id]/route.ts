@@ -18,7 +18,16 @@ export async function GET(
     const supabase = createServerClient();
     const { data, error } = await supabase
       .from('requests')
-      .select('*')
+      .select(`
+        *,
+        created_by_manager:managers!created_by(id, name, email),
+        request_managers(
+          id,
+          manager_id,
+          added_at,
+          manager:managers(id, name, email)
+        )
+      `)
       .eq('id', id)
       .single();
 

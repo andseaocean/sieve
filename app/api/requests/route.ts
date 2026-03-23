@@ -5,18 +5,43 @@ import { createServerClient } from '@/lib/supabase/client';
 import { RequestInsert } from '@/lib/supabase/types';
 
 // GET all requests
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const filter = request.nextUrl.searchParams.get('filter');
     const supabase = createServerClient();
-    const { data, error } = await supabase
+
+    let query = supabase
       .from('requests')
-      .select('*')
+      .select(`
+        *,
+        created_by_manager:managers!created_by(id, name),
+        request_managers(manager_id)
+      `)
       .order('created_at', { ascending: false });
+
+    if (filter === 'mine') {
+      const { data: managed } = await supabase
+        .from('request_managers')
+        .select('request_id')
+        .eq('manager_id', session.user.id);
+
+      const managedIds = (managed as { request_id: string }[] | null)?.map((r) => r.request_id) ?? [];
+
+      if (managedIds.length > 0) {
+        query = query.or(
+          `created_by.eq.${session.user.id},id.in.(${managedIds.join(',')})`
+        );
+      } else {
+        query = query.eq('created_by', session.user.id);
+      }
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error('Error fetching requests:', error);
@@ -42,6 +67,7 @@ export async function POST(request: NextRequest) {
 
     const newRequest: RequestInsert = {
       manager_id: session.user.id,
+      created_by: session.user.id,
       title: body.title,
       description: body.description || null,
       required_skills: body.required_skills,
@@ -78,11 +104,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    const createdRequest = data as { id: string };
+
+    // Auto-add creator as first manager
+    await supabase.from('request_managers').insert({
+      request_id: createdRequest.id,
+      manager_id: session.user.id,
+      added_by: session.user.id,
+    } as never);
+
     // Fire-and-forget: scan existing candidates for this new request
-    const newRequestId = (data as { id: string }).id;
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000';
     const internalSecret = process.env.INTERNAL_API_SECRET || 'default-secret';
-    fetch(`${appUrl}/api/requests/${newRequestId}/scan-candidates`, {
+    fetch(`${appUrl}/api/requests/${createdRequest.id}/scan-candidates`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

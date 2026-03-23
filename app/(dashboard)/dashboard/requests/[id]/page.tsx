@@ -5,6 +5,7 @@ import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Header } from '@/components/dashboard/header';
 import { RequestForm } from '@/components/requests/request-form';
+import { RequestTeam } from '@/components/requests/request-team';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -40,6 +41,24 @@ import { toast } from 'sonner';
 import { Pencil, Trash2, ArrowLeft, MapPin, Briefcase, Clock, AlertTriangle, Users, ExternalLink } from 'lucide-react';
 import { CandidateScanResults } from '@/components/requests/CandidateScanResults';
 
+interface ManagerInfo {
+  id: string;
+  name: string;
+  email: string;
+}
+
+interface RequestManagerEntry {
+  id: string;
+  manager_id: string;
+  added_at: string;
+  manager: ManagerInfo | null;
+}
+
+interface RequestWithTeam extends Request {
+  created_by_manager: ManagerInfo | null;
+  request_managers: RequestManagerEntry[];
+}
+
 interface MatchedCandidate {
   id: string;
   match_score: number | null;
@@ -55,7 +74,7 @@ export default function RequestDetailsPage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [request, setRequest] = useState<Request | null>(null);
+  const [request, setRequest] = useState<RequestWithTeam | null>(null);
   const [matches, setMatches] = useState<MatchedCandidate[]>([]);
   const [loading, setLoading] = useState(true);
   const [matchesLoading, setMatchesLoading] = useState(true);
@@ -157,7 +176,7 @@ export default function RequestDetailsPage() {
       <Header title={request.title} />
 
       <div className="flex-1 p-6 overflow-auto">
-        <div className="max-w-4xl mx-auto space-y-6">
+        <div className="max-w-5xl mx-auto space-y-6">
           {/* Back and actions */}
           <div className="flex items-center justify-between">
             <Link href="/dashboard/requests">
@@ -220,206 +239,219 @@ export default function RequestDetailsPage() {
             </Badge>
           </div>
 
-          {/* Scan results from existing candidate base */}
-          <CandidateScanResults requestId={request.id} requestTitle={request.title} />
+          {/* Two-column layout: main content + sidebar */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Main content */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Scan results from existing candidate base */}
+              <CandidateScanResults requestId={request.id} requestTitle={request.title} />
 
-          {/* Matched Candidates */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                Топ кандидати для цього запиту
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {matchesLoading ? (
-                <p className="text-sm text-muted-foreground">Завантаження кандидатів...</p>
-              ) : matches.length === 0 ? (
-                <div className="text-center py-8">
-                  <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                    <Users className="h-6 w-6 text-gray-400" />
-                  </div>
-                  <p className="text-muted-foreground">
-                    Поки немає кандидатів для цього запиту
-                  </p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Кандидати з&apos;являться після подачі заявок через публічну форму
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {matches.map((match) => {
-                    if (!match.candidate) return null;
-                    const candidate = match.candidate;
-                    const matchScore = match.match_score || 0;
+              {/* Matched Candidates */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="h-5 w-5" />
+                    Топ кандидати для цього запиту
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {matchesLoading ? (
+                    <p className="text-sm text-muted-foreground">Завантаження кандидатів...</p>
+                  ) : matches.length === 0 ? (
+                    <div className="text-center py-8">
+                      <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <Users className="h-6 w-6 text-gray-400" />
+                      </div>
+                      <p className="text-muted-foreground">
+                        Поки немає кандидатів для цього запиту
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {matches.map((match) => {
+                        if (!match.candidate) return null;
+                        const candidate = match.candidate;
+                        const matchScore = match.match_score || 0;
 
-                    return (
-                      <div
-                        key={match.id}
-                        className="flex items-center gap-4 p-4 border rounded-lg hover:bg-gray-50 transition-colors"
-                      >
-                        {/* Match Score */}
-                        <div className={`w-16 h-16 rounded-lg flex flex-col items-center justify-center ${getMatchScoreBg(matchScore)}`}>
-                          <span className={`text-2xl font-bold ${getMatchScoreColor(matchScore)}`}>
-                            {matchScore}
-                          </span>
-                          <span className="text-xs text-muted-foreground">match</span>
-                        </div>
+                        return (
+                          <div
+                            key={match.id}
+                            className="flex items-center gap-4 p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                          >
+                            {/* Match Score */}
+                            <div className={`w-16 h-16 rounded-lg flex flex-col items-center justify-center ${getMatchScoreBg(matchScore)}`}>
+                              <span className={`text-2xl font-bold ${getMatchScoreColor(matchScore)}`}>
+                                {matchScore}
+                              </span>
+                              <span className="text-xs text-muted-foreground">match</span>
+                            </div>
 
-                        {/* Avatar */}
-                        <Avatar className="h-12 w-12">
-                          <AvatarFallback className="bg-primary/10 text-primary">
-                            {getInitials(candidate.first_name, candidate.last_name)}
-                          </AvatarFallback>
-                        </Avatar>
+                            {/* Avatar */}
+                            <Avatar className="h-12 w-12">
+                              <AvatarFallback className="bg-primary/10 text-primary">
+                                {getInitials(candidate.first_name, candidate.last_name)}
+                              </AvatarFallback>
+                            </Avatar>
 
-                        {/* Info */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <h4 className="font-medium">
-                              {candidate.first_name} {candidate.last_name}
-                            </h4>
-                            {candidate.ai_category && (
-                              <Badge variant="outline" className={`text-xs ${categoryColors[candidate.ai_category]}`}>
-                                {categoryLabels[candidate.ai_category]}
-                              </Badge>
-                            )}
-                            <Badge variant="outline" className={`text-xs ${statusColors[match.status]}`}>
-                              {statusLabels[match.status]}
-                            </Badge>
-                          </div>
-                          <p className="text-sm text-muted-foreground truncate">
-                            {candidate.email}
-                          </p>
-                          {candidate.key_skills && candidate.key_skills.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {candidate.key_skills.slice(0, 4).map((skill) => (
-                                <span
-                                  key={skill}
-                                  className="text-xs bg-gray-100 px-2 py-0.5 rounded"
-                                >
-                                  {skill}
-                                </span>
-                              ))}
-                              {candidate.key_skills.length > 4 && (
-                                <span className="text-xs text-muted-foreground">
-                                  +{candidate.key_skills.length - 4}
-                                </span>
+                            {/* Info */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <h4 className="font-medium">
+                                  {candidate.first_name} {candidate.last_name}
+                                </h4>
+                                {candidate.ai_category && (
+                                  <Badge variant="outline" className={`text-xs ${categoryColors[candidate.ai_category]}`}>
+                                    {categoryLabels[candidate.ai_category]}
+                                  </Badge>
+                                )}
+                                <Badge variant="outline" className={`text-xs ${statusColors[match.status]}`}>
+                                  {statusLabels[match.status]}
+                                </Badge>
+                              </div>
+                              <p className="text-sm text-muted-foreground truncate">
+                                {candidate.email}
+                              </p>
+                              {candidate.key_skills && candidate.key_skills.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {candidate.key_skills.slice(0, 4).map((skill) => (
+                                    <span
+                                      key={skill}
+                                      className="text-xs bg-gray-100 px-2 py-0.5 rounded"
+                                    >
+                                      {skill}
+                                    </span>
+                                  ))}
+                                  {candidate.key_skills.length > 4 && (
+                                    <span className="text-xs text-muted-foreground">
+                                      +{candidate.key_skills.length - 4}
+                                    </span>
+                                  )}
+                                </div>
                               )}
                             </div>
-                          )}
-                        </div>
 
-                        {/* AI Score */}
-                        {candidate.ai_score && (
-                          <div className="text-right">
-                            <span className="text-lg font-semibold text-muted-foreground">
-                              {candidate.ai_score}/10
-                            </span>
-                            <p className="text-xs text-muted-foreground">AI score</p>
+                            {/* AI Score */}
+                            {candidate.ai_score && (
+                              <div className="text-right">
+                                <span className="text-lg font-semibold text-muted-foreground">
+                                  {candidate.ai_score}/10
+                                </span>
+                                <p className="text-xs text-muted-foreground">AI score</p>
+                              </div>
+                            )}
+
+                            {/* Link to candidate */}
+                            <Link href={`/dashboard/candidates/${candidate.id}`}>
+                              <Button variant="ghost" size="sm">
+                                <ExternalLink className="h-4 w-4" />
+                              </Button>
+                            </Link>
                           </div>
-                        )}
+                        );
+                      })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
 
-                        {/* Link to candidate */}
-                        <Link href={`/dashboard/candidates/${candidate.id}`}>
-                          <Button variant="ghost" size="sm">
-                            <ExternalLink className="h-4 w-4" />
-                          </Button>
-                        </Link>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+              {/* Main info */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Опис позиції</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {request.description ? (
+                    <p className="text-sm whitespace-pre-wrap">{request.description}</p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground italic">Опис не вказано</p>
+                  )}
 
-          {/* Main info */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Опис позиції</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {request.description ? (
-                <p className="text-sm whitespace-pre-wrap">{request.description}</p>
-              ) : (
-                <p className="text-sm text-muted-foreground italic">Опис не вказано</p>
-              )}
+                  <div className="flex flex-wrap gap-4 pt-4 border-t text-sm text-muted-foreground">
+                    {request.location && (
+                      <span className="flex items-center gap-1">
+                        <MapPin className="h-4 w-4" />
+                        {request.location}
+                      </span>
+                    )}
+                    {request.employment_type && request.employment_type !== 'not_specified' && (
+                      <span className="flex items-center gap-1">
+                        <Briefcase className="h-4 w-4" />
+                        {employmentTypeLabels[request.employment_type]}
+                      </span>
+                    )}
+                    {request.remote_policy && request.remote_policy !== 'not_specified' && (
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-4 w-4" />
+                        {remotePolicyLabels[request.remote_policy]}
+                      </span>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
 
-              <div className="flex flex-wrap gap-4 pt-4 border-t text-sm text-muted-foreground">
-                {request.location && (
-                  <span className="flex items-center gap-1">
-                    <MapPin className="h-4 w-4" />
-                    {request.location}
-                  </span>
-                )}
-                {request.employment_type && request.employment_type !== 'not_specified' && (
-                  <span className="flex items-center gap-1">
-                    <Briefcase className="h-4 w-4" />
-                    {employmentTypeLabels[request.employment_type]}
-                  </span>
-                )}
-                {request.remote_policy && request.remote_policy !== 'not_specified' && (
-                  <span className="flex items-center gap-1">
-                    <Clock className="h-4 w-4" />
-                    {remotePolicyLabels[request.remote_policy]}
-                  </span>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+              {/* Requirements */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Вимоги</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <h4 className="font-medium mb-2">Обов&apos;язкові навички</h4>
+                    <p className="text-sm whitespace-pre-wrap">{request.required_skills}</p>
+                  </div>
 
-          {/* Requirements */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Вимоги</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <h4 className="font-medium mb-2">Обов&apos;язкові навички</h4>
-                <p className="text-sm whitespace-pre-wrap">{request.required_skills}</p>
-              </div>
+                  {request.nice_to_have_skills && (
+                    <div>
+                      <h4 className="font-medium mb-2">Бажані навички</h4>
+                      <p className="text-sm whitespace-pre-wrap">{request.nice_to_have_skills}</p>
+                    </div>
+                  )}
 
-              {request.nice_to_have_skills && (
-                <div>
-                  <h4 className="font-medium mb-2">Бажані навички</h4>
-                  <p className="text-sm whitespace-pre-wrap">{request.nice_to_have_skills}</p>
-                </div>
-              )}
+                  <div>
+                    <h4 className="font-medium mb-2">Soft Skills</h4>
+                    <p className="text-sm whitespace-pre-wrap">{request.soft_skills}</p>
+                  </div>
 
-              <div>
-                <h4 className="font-medium mb-2">Soft Skills</h4>
-                <p className="text-sm whitespace-pre-wrap">{request.soft_skills}</p>
-              </div>
+                  {request.ai_orientation && (
+                    <div>
+                      <h4 className="font-medium mb-2">AI Орієнтація</h4>
+                      <p className="text-sm">{aiOrientationLabels[request.ai_orientation]}</p>
+                    </div>
+                  )}
 
-              {request.ai_orientation && (
-                <div>
-                  <h4 className="font-medium mb-2">AI Орієнтація</h4>
-                  <p className="text-sm">{aiOrientationLabels[request.ai_orientation]}</p>
-                </div>
-              )}
+                  {request.red_flags && (
+                    <div>
+                      <h4 className="font-medium mb-2 flex items-center gap-2">
+                        <AlertTriangle className="h-4 w-4 text-red-500" />
+                        Red Flags
+                      </h4>
+                      <p className="text-sm whitespace-pre-wrap">{request.red_flags}</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
 
-              {request.red_flags && (
-                <div>
-                  <h4 className="font-medium mb-2 flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 text-red-500" />
-                    Red Flags
-                  </h4>
-                  <p className="text-sm whitespace-pre-wrap">{request.red_flags}</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+              {/* Meta info */}
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>Створено: {formatDate(request.created_at)}</span>
+                    <span>Оновлено: {formatDate(request.updated_at)}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
 
-          {/* Meta info */}
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex justify-between text-sm text-muted-foreground">
-                <span>Створено: {formatDate(request.created_at)}</span>
-                <span>Оновлено: {formatDate(request.updated_at)}</span>
-              </div>
-            </CardContent>
-          </Card>
+            {/* Sidebar */}
+            <div className="space-y-4">
+              <RequestTeam
+                requestId={request.id}
+                createdBy={request.created_by}
+                createdByManager={request.created_by_manager}
+                initialManagers={request.request_managers}
+              />
+            </div>
+          </div>
         </div>
       </div>
     </div>

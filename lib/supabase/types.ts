@@ -80,6 +80,7 @@ export type Database = {
           outreach_template: string | null;
           outreach_template_approved: boolean;
           salary_range: string | null;
+          created_by: string | null;
         };
         Insert: {
           id?: string;
@@ -110,6 +111,7 @@ export type Database = {
           outreach_template?: string | null;
           outreach_template_approved?: boolean;
           salary_range?: string | null;
+          created_by?: string | null;
         };
         Update: {
           id?: string;
@@ -140,6 +142,30 @@ export type Database = {
           outreach_template?: string | null;
           outreach_template_approved?: boolean;
           salary_range?: string | null;
+          created_by?: string | null;
+        };
+      };
+      request_managers: {
+        Row: {
+          id: string;
+          request_id: string;
+          manager_id: string;
+          added_at: string;
+          added_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          request_id: string;
+          manager_id: string;
+          added_at?: string;
+          added_by?: string | null;
+        };
+        Update: {
+          id?: string;
+          request_id?: string;
+          manager_id?: string;
+          added_at?: string;
+          added_by?: string | null;
         };
       };
       candidates: {
@@ -745,6 +771,7 @@ export type Database = {
 
 // Helper types for easier usage
 export type Manager = Database['public']['Tables']['managers']['Row'];
+export type RequestManager = Database['public']['Tables']['request_managers']['Row'];
 export type Request = Database['public']['Tables']['requests']['Row'];
 export type Candidate = Database['public']['Tables']['candidates']['Row'];
 export type CandidateRequestMatch = Database['public']['Tables']['candidate_request_matches']['Row'];

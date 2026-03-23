@@ -15,11 +15,22 @@ import {
 } from '@/lib/utils';
 import { Eye, Pencil, MapPin, Briefcase } from 'lucide-react';
 
+interface ManagerRef {
+  id: string;
+  name: string;
+}
+
 interface RequestCardProps {
-  request: Request;
+  request: Request & {
+    created_by_manager?: ManagerRef | null;
+    request_managers?: { manager_id: string }[];
+  };
 }
 
 export function RequestCard({ request }: RequestCardProps) {
+  const authorName = request.created_by_manager?.name ?? 'Автор невідомий';
+  const extraManagers = (request.request_managers?.length ?? 0) - 1;
+
   return (
     <Card className="hover:shadow-md transition-shadow">
       <CardHeader className="pb-2">
@@ -40,6 +51,10 @@ export function RequestCard({ request }: RequestCardProps) {
                 </span>
               )}
             </div>
+            <p className="text-xs text-muted-foreground">
+              Автор: {authorName}
+              {extraManagers > 0 && ` · +${extraManagers} менеджер${extraManagers === 1 ? '' : 'и'}`}
+            </p>
           </div>
           <div className="flex gap-2">
             <Badge
@@ -67,7 +82,7 @@ export function RequestCard({ request }: RequestCardProps) {
         <div className="space-y-2">
           <div>
             <span className="text-xs font-medium text-muted-foreground">
-              Обов'язкові навички:
+              Обов&apos;язкові навички:
             </span>
             <p className="text-sm">{truncate(request.required_skills, 100)}</p>
           </div>
