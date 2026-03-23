@@ -217,6 +217,65 @@ AI відгук: ${evaluation.evaluation}
 `.trim();
 }
 
+/**
+ * Generate prompt for re-outreach to a candidate from the recommended pool.
+ * Used when adding a candidate from the "Recommended" tab to a new vacancy.
+ * The candidate already knows Vamos (was in a previous pipeline) and passed
+ * questionnaire with strong scores on competencies relevant to the new vacancy.
+ */
+export function RE_OUTREACH_PROMPT(
+  candidate: Candidate,
+  request: Request,
+  competencyScores: { competency_name: string; score: number; comment: string }[]
+): string {
+  const topScores = competencyScores
+    .filter((c) => c.score >= 7)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3);
+
+  const strengthsList = topScores
+    .map((c) => `${c.competency_name} (${c.score}/10)`)
+    .join(', ');
+
+  return `
+Ти — дружній HR-спеціаліст компанії Vamos.
+Напиши персоналізоване повідомлення кандидату, з яким ми вже спілкувались раніше. УКРАЇНСЬКОЮ мовою.
+
+=== ДАНІ КАНДИДАТА ===
+Ім'я: ${candidate.first_name}
+
+=== НОВА ПОЗИЦІЯ ===
+Назва: ${request.title}
+Опис: ${request.description || 'Не вказано'}
+${request.salary_range ? `Зарплата: ${request.salary_range}` : ''}
+${request.location ? `Локація: ${request.location}` : ''}
+
+=== РЕЗУЛЬТАТИ АНКЕТИ ===
+Сильні сторони кандидата: ${strengthsList || 'Висока загальна оцінка'}
+
+=== ВИМОГИ ДО ПОВІДОМЛЕННЯ ===
+1. Починай з привітання на ім'я — тон "ми вже знайомі"
+2. Скажи, що слідкуємо за кандидатами в базі і маємо нову можливість
+3. Згадай 1-2 конкретні сильні сторони з анкети — поясни, чому вони підходять для цієї позиції
+4. Коротко представ нову вакансію "${request.title}"
+5. Запитай, чи цікаво дізнатись більше
+6. НЕ підписуй повідомлення
+
+=== ЗАБОРОНЕНО ===
+- Згадувати причину відмови раніше або чому попередній процес не склався
+- Писати більше 120 слів
+- Формальний тон
+- Емодзі
+- Звертатися на "Ви" (використовуй "ти")
+- Кліше та шаблонні фрази
+
+=== ТОНАЛЬНІСТЬ ===
+Дружня, людяна, щира. Як написав би колега, який щиро думає, що ця людина підійде для нової позиції.
+
+Напиши ТІЛЬКИ текст повідомлення, без пояснень, метакоментарів чи лапок.
+`.trim();
+}
+
 export function MOCK_TEST_TASK_MESSAGE(
   candidate: Candidate,
   request: Request,

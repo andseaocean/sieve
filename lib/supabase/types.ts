@@ -15,7 +15,7 @@ export type ContactMethod = 'email' | 'telegram';
 export type OutreachMessageType = 'intro' | 'test_task' | 'follow_up';
 export type TestTaskStatus = 'not_sent' | 'scheduled' | 'sent' | 'submitted_on_time' | 'submitted_late' | 'evaluating' | 'evaluated' | 'approved' | 'rejected';
 export type ConversationDirection = 'outbound' | 'inbound';
-export type ConversationMessageType = 'outreach' | 'test_task' | 'candidate_response' | 'ai_reply' | 'deadline_extension_request' | 'deadline_extension_granted' | 'deadline_extension_denied' | 'test_task_decision' | 'questionnaire_sent' | 'questionnaire_submitted';
+export type ConversationMessageType = 'outreach' | 'test_task' | 'candidate_response' | 'ai_reply' | 'deadline_extension_request' | 'deadline_extension_granted' | 'deadline_extension_denied' | 'test_task_decision' | 'questionnaire_sent' | 'questionnaire_submitted' | 'manual_stage_change';
 export type QuestionnaireStatus = 'sent' | 'in_progress' | 'completed' | 'expired' | 'skipped';
 export type PipelineStage = 'new' | 'analyzed' | 'outreach_sent' | 'outreach_declined' | 'questionnaire_sent' | 'questionnaire_done' | 'test_sent' | 'test_done' | 'interview' | 'rejected' | 'hired';
 export type AutomationActionType = 'send_outreach' | 'send_questionnaire' | 'send_test_task' | 'send_rejection' | 'send_invite';
@@ -230,6 +230,11 @@ export type Database = {
           resume_extracted_data: ResumeData | null;
           questionnaire_status: QuestionnaireStatus | null;
           pipeline_stage: PipelineStage;
+          // Blacklist fields (migration 019)
+          is_blacklisted: boolean;
+          blacklisted_at: string | null;
+          blacklisted_by: string | null;
+          blacklist_reason: string | null;
           // Vacancy binding fields (migration 015)
           primary_request_id: string | null;
           applied_request_ids: string[];
@@ -292,6 +297,11 @@ export type Database = {
           resume_extracted_data?: ResumeData | null;
           questionnaire_status?: QuestionnaireStatus | null;
           pipeline_stage?: PipelineStage;
+          // Blacklist fields (migration 019)
+          is_blacklisted?: boolean;
+          blacklisted_at?: string | null;
+          blacklisted_by?: string | null;
+          blacklist_reason?: string | null;
           // Vacancy binding fields (migration 015)
           primary_request_id?: string | null;
           applied_request_ids?: string[];
@@ -354,6 +364,11 @@ export type Database = {
           resume_extracted_data?: ResumeData | null;
           questionnaire_status?: QuestionnaireStatus | null;
           pipeline_stage?: PipelineStage;
+          // Blacklist fields (migration 019)
+          is_blacklisted?: boolean;
+          blacklisted_at?: string | null;
+          blacklisted_by?: string | null;
+          blacklist_reason?: string | null;
           // Vacancy binding fields (migration 015)
           primary_request_id?: string | null;
           applied_request_ids?: string[];

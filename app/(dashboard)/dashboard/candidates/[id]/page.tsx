@@ -45,6 +45,8 @@ import { MatchedVacancies, MatchedVacancy } from '@/components/candidates/Matche
 import { RequestHistory, RequestHistoryEntry } from '@/components/candidates/RequestHistory';
 import { FinalDecisionPanel } from '@/components/dashboard/final-decision-panel';
 import { PipelineTimeline } from '@/components/dashboard/pipeline-timeline';
+import { BlacklistButton } from '@/components/candidates/BlacklistButton';
+import { PipelineStageEditor } from '@/components/candidates/PipelineStageEditor';
 import type { PipelineStage } from '@/lib/supabase/types';
 import type { ResumeData } from '@/lib/pdf/types';
 
@@ -224,18 +226,25 @@ export default function CandidateDetailsPage() {
               </Button>
             </Link>
 
-            <Button
-              onClick={handleRunAIAnalysis}
-              disabled={isAnalyzing}
-              variant="outline"
-            >
-              {isAnalyzing ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Sparkles className="h-4 w-4 mr-2" />
-              )}
-              {isAnalyzing ? 'Аналіз...' : 'Запустити AI аналіз'}
-            </Button>
+            <div className="flex items-center gap-2">
+              <BlacklistButton
+                candidateId={candidateId}
+                isBlacklisted={candidate.is_blacklisted ?? false}
+                blacklistReason={candidate.blacklist_reason}
+              />
+              <Button
+                onClick={handleRunAIAnalysis}
+                disabled={isAnalyzing}
+                variant="outline"
+              >
+                {isAnalyzing ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4 mr-2" />
+                )}
+                {isAnalyzing ? 'Аналіз...' : 'Запустити AI аналіз'}
+              </Button>
+            </div>
           </div>
 
           {/* Pipeline Timeline */}
@@ -243,6 +252,16 @@ export default function CandidateDetailsPage() {
             <Card>
               <CardContent className="pt-4 pb-2">
                 <PipelineTimeline currentStage={candidate.pipeline_stage as PipelineStage} />
+                <div className="mt-3 flex justify-end">
+                  <PipelineStageEditor
+                    candidateId={candidateId}
+                    currentStage={candidate.pipeline_stage as PipelineStage}
+                    isBlacklisted={candidate.is_blacklisted ?? false}
+                    onStageChanged={(newStage) => {
+                      setCandidate({ ...candidate, pipeline_stage: newStage });
+                    }}
+                  />
+                </div>
               </CardContent>
             </Card>
           )}

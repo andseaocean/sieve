@@ -440,6 +440,18 @@ export async function handleSendRejection(supabase: SupabaseClient, job: Automat
 // ─── Main dispatcher ────────────────────────────────────────
 
 export async function executeAutomationJob(supabase: SupabaseClient, job: AutomationJob) {
+  // Check blacklist before executing any automation job
+  const { data: candidateCheck } = await supabase
+    .from('candidates')
+    .select('is_blacklisted')
+    .eq('id', job.candidate_id)
+    .single();
+
+  if ((candidateCheck as { is_blacklisted: boolean } | null)?.is_blacklisted) {
+    console.log(`Automation: Candidate ${job.candidate_id} is blacklisted, skipping job ${job.id}`);
+    return { success: true, skipped: true };
+  }
+
   switch (job.action_type) {
     case 'send_outreach':
       return handleSendOutreach(supabase, job);

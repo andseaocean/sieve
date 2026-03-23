@@ -40,6 +40,8 @@ import {
 import { toast } from 'sonner';
 import { Pencil, Trash2, ArrowLeft, MapPin, Briefcase, Clock, AlertTriangle, Users, ExternalLink } from 'lucide-react';
 import { CandidateScanResults } from '@/components/requests/CandidateScanResults';
+import { RecommendedCandidates } from '@/components/requests/RecommendedCandidates';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface ManagerInfo {
   id: string;
@@ -243,116 +245,134 @@ export default function RequestDetailsPage() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Main content */}
             <div className="lg:col-span-2 space-y-6">
-              {/* Scan results from existing candidate base */}
-              <CandidateScanResults requestId={request.id} requestTitle={request.title} />
+              {/* Candidate tabs */}
+              <Tabs defaultValue="matched">
+                <TabsList>
+                  <TabsTrigger value="matched">Підібрані</TabsTrigger>
+                  <TabsTrigger value="recommended">Рекомендовані</TabsTrigger>
+                </TabsList>
 
-              {/* Matched Candidates */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Users className="h-5 w-5" />
-                    Топ кандидати для цього запиту
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {matchesLoading ? (
-                    <p className="text-sm text-muted-foreground">Завантаження кандидатів...</p>
-                  ) : matches.length === 0 ? (
-                    <div className="text-center py-8">
-                      <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                        <Users className="h-6 w-6 text-gray-400" />
-                      </div>
-                      <p className="text-muted-foreground">
-                        Поки немає кандидатів для цього запиту
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {matches.map((match) => {
-                        if (!match.candidate) return null;
-                        const candidate = match.candidate;
-                        const matchScore = match.match_score || 0;
+                <TabsContent value="matched" className="mt-4 space-y-6">
+                  {/* Scan results from existing candidate base */}
+                  <CandidateScanResults requestId={request.id} requestTitle={request.title} />
 
-                        return (
-                          <div
-                            key={match.id}
-                            className="flex items-center gap-4 p-4 border rounded-lg hover:bg-gray-50 transition-colors"
-                          >
-                            {/* Match Score */}
-                            <div className={`w-16 h-16 rounded-lg flex flex-col items-center justify-center ${getMatchScoreBg(matchScore)}`}>
-                              <span className={`text-2xl font-bold ${getMatchScoreColor(matchScore)}`}>
-                                {matchScore}
-                              </span>
-                              <span className="text-xs text-muted-foreground">match</span>
-                            </div>
+                  {/* Matched Candidates */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Users className="h-5 w-5" />
+                        Топ кандидати для цього запиту
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {matchesLoading ? (
+                        <p className="text-sm text-muted-foreground">Завантаження кандидатів...</p>
+                      ) : matches.length === 0 ? (
+                        <div className="text-center py-8">
+                          <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                            <Users className="h-6 w-6 text-gray-400" />
+                          </div>
+                          <p className="text-muted-foreground">
+                            Поки немає кандидатів для цього запиту
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {matches.map((match) => {
+                            if (!match.candidate) return null;
+                            const candidate = match.candidate;
+                            const matchScore = match.match_score || 0;
 
-                            {/* Avatar */}
-                            <Avatar className="h-12 w-12">
-                              <AvatarFallback className="bg-primary/10 text-primary">
-                                {getInitials(candidate.first_name, candidate.last_name)}
-                              </AvatarFallback>
-                            </Avatar>
+                            return (
+                              <div
+                                key={match.id}
+                                className="flex items-center gap-4 p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                              >
+                                {/* Match Score */}
+                                <div className={`w-16 h-16 rounded-lg flex flex-col items-center justify-center ${getMatchScoreBg(matchScore)}`}>
+                                  <span className={`text-2xl font-bold ${getMatchScoreColor(matchScore)}`}>
+                                    {matchScore}
+                                  </span>
+                                  <span className="text-xs text-muted-foreground">match</span>
+                                </div>
 
-                            {/* Info */}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <h4 className="font-medium">
-                                  {candidate.first_name} {candidate.last_name}
-                                </h4>
-                                {candidate.ai_category && (
-                                  <Badge variant="outline" className={`text-xs ${categoryColors[candidate.ai_category]}`}>
-                                    {categoryLabels[candidate.ai_category]}
-                                  </Badge>
-                                )}
-                                <Badge variant="outline" className={`text-xs ${statusColors[match.status]}`}>
-                                  {statusLabels[match.status]}
-                                </Badge>
-                              </div>
-                              <p className="text-sm text-muted-foreground truncate">
-                                {candidate.email}
-                              </p>
-                              {candidate.key_skills && candidate.key_skills.length > 0 && (
-                                <div className="flex flex-wrap gap-1 mt-1">
-                                  {candidate.key_skills.slice(0, 4).map((skill) => (
-                                    <span
-                                      key={skill}
-                                      className="text-xs bg-gray-100 px-2 py-0.5 rounded"
-                                    >
-                                      {skill}
-                                    </span>
-                                  ))}
-                                  {candidate.key_skills.length > 4 && (
-                                    <span className="text-xs text-muted-foreground">
-                                      +{candidate.key_skills.length - 4}
-                                    </span>
+                                {/* Avatar */}
+                                <Avatar className="h-12 w-12">
+                                  <AvatarFallback className="bg-primary/10 text-primary">
+                                    {getInitials(candidate.first_name, candidate.last_name)}
+                                  </AvatarFallback>
+                                </Avatar>
+
+                                {/* Info */}
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <h4 className="font-medium">
+                                      {candidate.first_name} {candidate.last_name}
+                                    </h4>
+                                    {candidate.ai_category && (
+                                      <Badge variant="outline" className={`text-xs ${categoryColors[candidate.ai_category]}`}>
+                                        {categoryLabels[candidate.ai_category]}
+                                      </Badge>
+                                    )}
+                                    <Badge variant="outline" className={`text-xs ${statusColors[match.status]}`}>
+                                      {statusLabels[match.status]}
+                                    </Badge>
+                                  </div>
+                                  <p className="text-sm text-muted-foreground truncate">
+                                    {candidate.email}
+                                  </p>
+                                  {candidate.key_skills && candidate.key_skills.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mt-1">
+                                      {candidate.key_skills.slice(0, 4).map((skill) => (
+                                        <span
+                                          key={skill}
+                                          className="text-xs bg-gray-100 px-2 py-0.5 rounded"
+                                        >
+                                          {skill}
+                                        </span>
+                                      ))}
+                                      {candidate.key_skills.length > 4 && (
+                                        <span className="text-xs text-muted-foreground">
+                                          +{candidate.key_skills.length - 4}
+                                        </span>
+                                      )}
+                                    </div>
                                   )}
                                 </div>
-                              )}
-                            </div>
 
-                            {/* AI Score */}
-                            {candidate.ai_score && (
-                              <div className="text-right">
-                                <span className="text-lg font-semibold text-muted-foreground">
-                                  {candidate.ai_score}/10
-                                </span>
-                                <p className="text-xs text-muted-foreground">AI score</p>
+                                {/* AI Score */}
+                                {candidate.ai_score && (
+                                  <div className="text-right">
+                                    <span className="text-lg font-semibold text-muted-foreground">
+                                      {candidate.ai_score}/10
+                                    </span>
+                                    <p className="text-xs text-muted-foreground">AI score</p>
+                                  </div>
+                                )}
+
+                                {/* Link to candidate */}
+                                <Link href={`/dashboard/candidates/${candidate.id}`}>
+                                  <Button variant="ghost" size="sm">
+                                    <ExternalLink className="h-4 w-4" />
+                                  </Button>
+                                </Link>
                               </div>
-                            )}
+                            );
+                          })}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
 
-                            {/* Link to candidate */}
-                            <Link href={`/dashboard/candidates/${candidate.id}`}>
-                              <Button variant="ghost" size="sm">
-                                <ExternalLink className="h-4 w-4" />
-                              </Button>
-                            </Link>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                <TabsContent value="recommended" className="mt-4">
+                  <Card>
+                    <CardContent className="pt-6">
+                      <RecommendedCandidates requestId={request.id} requestTitle={request.title} />
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              </Tabs>
 
               {/* Main info */}
               <Card>

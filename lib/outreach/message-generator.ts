@@ -13,6 +13,7 @@ import {
   TEST_TASK_MESSAGE_PROMPT,
   MOCK_INTRO_MESSAGE,
   MOCK_TEST_TASK_MESSAGE,
+  RE_OUTREACH_PROMPT,
 } from '@/lib/ai/outreach-prompts';
 import { OUTREACH_PERSONALIZATION_PROMPT } from '@/lib/ai/prompts';
 
@@ -120,6 +121,37 @@ export async function generatePersonalizedOutreach(
   } catch (error) {
     console.error('Error generating personalized outreach:', error);
     return `Привіт, ${candidate.first_name}!\n\n${template}`;
+  }
+}
+
+/**
+ * Generate personalized re-outreach message for a candidate from the recommended pool.
+ * Used when adding a candidate from "Recommended" tab to a new vacancy.
+ */
+export async function generateReOutreach(
+  candidate: Candidate,
+  request: Request,
+  competencyScores: { competency_name: string; score: number; comment: string }[]
+): Promise<string> {
+  const fallback = `Привіт, ${candidate.first_name}!\n\nМи маємо для тебе нову можливість — ${request.title}. Твій профіль нас дуже зацікавив. Чи є інтерес дізнатись більше?`;
+
+  if (USE_MOCK_AI) {
+    return fallback;
+  }
+
+  try {
+    const prompt = RE_OUTREACH_PROMPT(candidate, request, competencyScores);
+    const response = await analyzeWithClaude(prompt);
+    const cleaned = cleanAIResponse(response);
+
+    if (!cleaned || cleaned.length < 30) {
+      return fallback;
+    }
+
+    return cleaned;
+  } catch (error) {
+    console.error('Error generating re-outreach message:', error);
+    return fallback;
   }
 }
 

@@ -48,6 +48,8 @@ components/
   candidates/
     VacancySelector.tsx           # Vacancy multi-select (used in application form via Telegram Mini App)
     VacancyBlock.tsx              # Primary vacancy block in candidate detail
+    BlacklistButton.tsx           # Blacklist/unblacklist button + dialog (candidate header)
+    PipelineStageEditor.tsx       # Manual pipeline stage change dialog (candidate detail)
     MatchedVacancies.tsx          # "Also fits" block in candidate detail
     RequestHistory.tsx            # Collapsible vacancy change history
   requests/
@@ -55,6 +57,7 @@ components/
     RequestCard.tsx               # Vacancy card (list view; shows author + manager count)
     RequestTeam.tsx               # "Команда" sidebar block (author + managers, add/remove)
     RequestForm.tsx               # Create/edit vacancy form
+    RecommendedCandidates.tsx     # "Рекомендовані" tab — candidates from other pipelines with matching questionnaire scores
   ui/                             # shadcn/ui primitives
   candidates/                     # CandidateCard, CandidateFilters, ResumeViewer, etc.
   dashboard/                      # Header, Sidebar
@@ -155,8 +158,9 @@ middleware.ts                     # Auth middleware (protects /dashboard/*)
 - Outreach: outreach_status, outreach_sent_at, candidate_response, outreach_message
 - Test task: test_task_status, test_task_sent_at, test_task_original_deadline, test_task_current_deadline, test_task_extensions_count, test_task_submitted_at, test_task_submission_text, test_task_candidate_feedback, test_task_ai_score, test_task_ai_evaluation, test_task_late_by_hours
 - Questionnaire: questionnaire_status (sent|in_progress|completed|expired|skipped)
-- Pipeline: pipeline_stage (new|analyzed|outreach_sent|questionnaire_sent|questionnaire_done|test_sent|test_done|interview|rejected|hired|outreach_declined)
+- Pipeline: pipeline_stage (new|analyzed|outreach_sent|questionnaire_sent|questionnaire_done|test_sent|test_done|interview|rejected|hired|outreach_declined) — **змінюється вручну** через PUT /api/candidates/[id]/pipeline-stage
 - **Vacancy binding (migration 015):** primary_request_id (UUID FK → requests, nullable), applied_request_ids (UUID[]) — vacancies selected at application time
+- **Blacklist (migration 019):** is_blacklisted (BOOLEAN, default false), blacklisted_at (TIMESTAMPTZ), blacklisted_by (UUID FK → managers), blacklist_reason (TEXT) — кандидат виключається з усіх автоматичних дій та вкладки "Рекомендовані"
 
 **candidate_request_history** — Vacancy change log (migration 015)
 - candidate_id, from_request_id, to_request_id, changed_by (manager FK), reason ('initial_application'|'manager_reassign'|'new_request_scan'|'auto_best_match'), notes, created_at
@@ -218,6 +222,9 @@ middleware.ts                     # Auth middleware (protects /dashboard/*)
 - `GET /api/candidates/[id]/request-history` — Vacancy change history
 - `GET/PUT/DELETE /api/candidates/[id]` — CRUD
 - `POST /api/candidates/[id]/analyze-background` — Background AI analysis (fire-and-forget from apply, triggers outreach)
+- `POST /api/candidates/[id]/blacklist` — Add to blacklist (body: { reason? }); cancels pending automation_queue jobs
+- `DELETE /api/candidates/[id]/blacklist` — Remove from blacklist
+- `PUT /api/candidates/[id]/pipeline-stage` — Manually change pipeline stage (body: { stage, reason? }); logs to candidate_conversations; blocked if is_blacklisted=true
 - `GET /api/candidates/[id]/resume` — PDF resume proxy/viewer
 - `GET/POST /api/candidates/[id]/comments` — Comments
 - `GET /api/candidates/[id]/match-info` — Best match request_id + final_decision
@@ -232,10 +239,12 @@ middleware.ts                     # Auth middleware (protects /dashboard/*)
 ### Requests
 - `GET /api/requests/open` — Public list of active vacancies (no auth) for Telegram Mini App apply form
 - `GET /api/requests` — List all; includes created_by_manager, request_managers; supports `?filter=mine`
-- `POST /api/requests` — Create; sets created_by from session, auto-adds creator to request_managers
+- `POST /api/requests` — Create; sets created_by from session, auto-adds creator to request_managers (**не тригерить auto scan-candidates**)
 - `GET/PATCH/DELETE /api/requests/[id]` — CRUD; GET includes created_by_manager + request_managers with manager info
-- `POST /api/requests/[id]/scan-candidates` — Scan candidate base for a vacancy (auth or internal secret)
+- `POST /api/requests/[id]/scan-candidates` — Scan candidate base for a vacancy (auth or internal secret; **тільки вручну**)
 - `GET /api/requests/[id]/matches` — Matched candidates
+- `GET /api/requests/[id]/recommended-candidates` — Кандидати з бази, які пройшли анкету по ≥3 компетенціях ≥7 балів, у стані rejected/outreach_declined, ще не в матчах цієї вакансії
+- `POST /api/requests/[id]/add-recommended` — Додати вибраних рекомендованих кандидатів: створює matches + queues send_outreach + генерує AI re-outreach повідомлення
 - `POST /api/requests/generate-job-description` — AI job description
 - `POST /api/requests/[id]/managers` — Add manager to vacancy (body: { manager_id })
 - `DELETE /api/requests/[id]/managers/[managerId]` — Remove manager (forbidden if managerId === created_by)
@@ -333,6 +342,34 @@ The system automates the entire candidate funnel via `automation_queue` jobs pro
 - Telegram outreach callback "Yes" → queues `send_questionnaire`
 - Questionnaire submit → queues `send_test_task` (if questionnaire score ≥ 7)
 - Manager final decision → queues `send_invite` or `send_rejection` (24h delay)
+
+**Blacklist guard:** `executeAutomationJob()` перевіряє `is_blacklisted` перед виконанням — якщо true, job завершується без відправки.
+
+### Blacklist
+- `is_blacklisted = true` — кандидат повністю виключається з автоматичного аутрічу та вкладки "Рекомендовані"
+- При занесенні в чорний список: всі pending/processing jobs в automation_queue скасовуються
+- `executeAutomationJob()` перевіряє `is_blacklisted` перед виконанням будь-якої дії
+- Ручна зміна `pipeline_stage` заблокована якщо `is_blacklisted = true` (спочатку треба зняти)
+- **UI:** кнопка "Чорний список" в хедері картки кандидата (`BlacklistButton.tsx`)
+- **API:** `POST/DELETE /api/candidates/[id]/blacklist`
+
+### Ручна зміна pipeline_stage
+- Менеджер може змінити статус вручну через діалог у блоці Pipeline на картці кандидата
+- Зміни логуються в `candidate_conversations` з `message_type: 'manual_stage_change'`
+- **UI:** кнопка "Змінити статус" після PipelineTimeline (`PipelineStageEditor.tsx`)
+- **API:** `PUT /api/candidates/[id]/pipeline-stage`
+
+### Рекомендовані кандидати (вкладка на сторінці вакансії)
+- Вкладка "Рекомендовані" на сторінці вакансії поруч з "Підібрані"
+- Знаходить кандидатів зі статусами `rejected`/`outreach_declined`, які пройшли анкету по ≥3 компетенціях з поточної вакансії із оцінкою ≥7
+- **Без AI** — підбір тільки по збережених оцінках анкети
+- Менеджер вибирає кандидатів → натискає "Додати вибраних" → AI генерує персоналізований re-outreach (`RE_OUTREACH_PROMPT`) з контекстом сильних сторін
+- Після підтвердження: `candidate_request_matches` (status: new) + automation_queue `send_outreach` + `pipeline_stage → outreach_sent`
+- **Ключові файли:** `components/requests/RecommendedCandidates.tsx`, `app/api/requests/[id]/recommended-candidates/route.ts`, `app/api/requests/[id]/add-recommended/route.ts`, `lib/ai/outreach-prompts.ts` (`RE_OUTREACH_PROMPT`), `lib/outreach/message-generator.ts` (`generateReOutreach`)
+
+### Auto scan-candidates при створенні вакансії
+- **Видалено** — більше не тригериться автоматично при `POST /api/requests`
+- Кнопка "Сканувати кандидатів" залишається, але запускається лише вручну менеджером
 
 ### Manual Outreach Flow (legacy)
 1. Manager selects candidate + request
