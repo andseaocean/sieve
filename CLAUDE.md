@@ -126,7 +126,8 @@ middleware.ts                     # Auth middleware (protects /dashboard/*)
 ### Core Tables
 
 **managers** — User accounts
-- id, email, password_hash, name, role (admin|manager), created_at
+- id, email, password_hash (bcrypt, salt 10), name, role (admin|manager), is_active (BOOLEAN, default true), created_at
+- is_active=false блокує вхід; не можна деактивувати себе через UI
 
 **requests** — Hiring requests / job openings
 - title, description, required_skills, nice_to_have_skills, soft_skills
@@ -223,7 +224,10 @@ middleware.ts                     # Auth middleware (protects /dashboard/*)
 - `POST /api/candidates/[id]/final-decision` — Manager invite/reject decision (queues automation)
 
 ### Managers
-- `GET /api/managers/search?q=` — Search managers by name/email (≥2 chars, ILIKE); returns id, name, email
+- `GET /api/managers` — List all managers (admin only); returns id, name, email, role, is_active, created_at (no password_hash)
+- `POST /api/managers` — Create manager (admin only); hashes password with bcrypt; validates name/email/password(≥8)/role
+- `PUT /api/managers/[id]` — Update manager (admin only); hashes password if provided; blocks self-deactivation and self-role-downgrade
+- `GET /api/managers/search?q=` — Search active managers by name/email (≥2 chars, ILIKE); returns id, name, email
 
 ### Requests
 - `GET /api/requests/open` — Public list of active vacancies (no auth) for Telegram Mini App apply form
@@ -401,7 +405,9 @@ The system automates the entire candidate funnel via `automation_queue` jobs pro
 - JWT session strategy
 - Managers table in Supabase
 - Middleware protects all `/dashboard/*` routes
-- **Note:** Password comparison is MVP-level (plain comparison, not bcrypt)
+- Passwords stored as **bcrypt hashes** (salt rounds: 10); compared via `bcrypt.compare()`
+- Login blocked if `is_active = false`
+- First admin created manually via Supabase Dashboard; all subsequent users via `/dashboard/settings/users` (admin only)
 
 ## Environment Variables
 
@@ -427,6 +433,9 @@ npm run build    # Production build
 npm run start    # Start production
 npm run lint     # ESLint
 npm run bot      # Start Telegram bot (polling mode, for local dev)
+
+# One-time migration: hash existing plain-text passwords with bcrypt
+npx ts-node --compiler-options '{"module":"CommonJS"}' scripts/hash-passwords.ts
 ```
 
 ## Supported Languages

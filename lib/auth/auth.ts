@@ -1,5 +1,6 @@
 import { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
+import bcrypt from 'bcryptjs';
 import { createServerClient } from '@/lib/supabase/client';
 import { Manager } from '@/lib/supabase/types';
 
@@ -13,41 +14,32 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
-          console.log('Auth: Missing credentials');
           return null;
         }
 
         const supabase = createServerClient();
 
-        // Find manager by email
         const { data, error } = await supabase
           .from('managers')
           .select('*')
           .eq('email', credentials.email)
           .single();
 
-        console.log('Auth: Supabase response:', { data, error });
-
         if (error || !data) {
-          console.log('Auth: No manager found or error:', error);
           return null;
         }
 
-        const manager = data as Manager;
+        const manager = data as Manager & { is_active?: boolean };
 
-        console.log('Auth: Checking password:', {
-          stored: manager.password_hash,
-          provided: credentials.password,
-          match: manager.password_hash === credentials.password
-        });
-
-        // For MVP: simple password check (in production, use proper hashing)
-        if (manager.password_hash !== credentials.password) {
-          console.log('Auth: Password mismatch');
+        if (manager.is_active === false) {
           return null;
         }
 
-        console.log('Auth: Success!');
+        const isValid = await bcrypt.compare(credentials.password, manager.password_hash);
+        if (!isValid) {
+          return null;
+        }
+
         return {
           id: manager.id,
           email: manager.email,

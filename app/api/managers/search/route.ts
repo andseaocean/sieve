@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from('managers')
       .select('id, name, email')
+      .eq('is_active', true)
       .order('name');
 
     if (q.length >= 2) {

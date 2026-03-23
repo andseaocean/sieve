@@ -31,6 +31,7 @@ export type Database = {
           password_hash: string;
           name: string;
           role: 'admin' | 'manager';
+          is_active: boolean;
           created_at: string;
         };
         Insert: {
@@ -39,6 +40,7 @@ export type Database = {
           password_hash: string;
           name: string;
           role?: 'admin' | 'manager';
+          is_active?: boolean;
           created_at?: string;
         };
         Update: {
@@ -47,6 +49,7 @@ export type Database = {
           password_hash?: string;
           name?: string;
           role?: 'admin' | 'manager';
+          is_active?: boolean;
           created_at?: string;
         };
       };

@@ -12,6 +12,7 @@ import {
   LogOut,
   Search,
   Settings,
+  UserCog,
 } from 'lucide-react';
 
 const navigation = [
@@ -74,6 +75,21 @@ export function Sidebar() {
           <Settings className="h-5 w-5" />
           Налаштування
         </Link>
+
+        {isAdmin && (
+          <Link
+            href="/dashboard/settings/users"
+            className={cn(
+              'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+              pathname === '/dashboard/settings/users'
+                ? 'bg-primary text-white'
+                : 'text-gray-700 hover:bg-gray-100'
+            )}
+          >
+            <UserCog className="h-5 w-5" />
+            Користувачі
+          </Link>
+        )}
       </nav>
 
       {/* Logout */}
