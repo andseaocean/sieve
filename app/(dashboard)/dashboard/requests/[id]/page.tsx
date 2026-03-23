@@ -94,7 +94,9 @@ export default function RequestDetailsPage() {
           const data = await response.json();
           setRequest(data);
         } else {
-          toast.error('Запит не знайдено');
+          const errData = await response.json().catch(() => ({}));
+          console.error('Failed to fetch request:', response.status, errData);
+          toast.error(`Запит не знайдено (${response.status}: ${errData?.error ?? 'unknown'})`);
           router.push('/dashboard/requests');
         }
       } catch (error) {
