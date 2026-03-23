@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Header } from '@/components/dashboard/header';
@@ -27,7 +27,7 @@ type RequestWithTeam = Request & {
   request_managers: { manager_id: string }[];
 };
 
-export default function RequestsPage() {
+function RequestsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const tab = (searchParams.get('tab') ?? 'all') as 'all' | 'mine';
@@ -66,78 +66,85 @@ export default function RequestsPage() {
   });
 
   return (
-    <div className="flex flex-col h-full">
-      <Header title="Вакансії" />
+    <div className="flex-1 p-6 space-y-6">
+      {/* Tabs + Actions bar */}
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-4">
+          <Tabs value={tab} onValueChange={handleTabChange}>
+            <TabsList>
+              <TabsTrigger value="all">Всі вакансії</TabsTrigger>
+              <TabsTrigger value="mine">Мої вакансії</TabsTrigger>
+            </TabsList>
+          </Tabs>
 
-      <div className="flex-1 p-6 space-y-6">
-        {/* Tabs + Actions bar */}
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-4">
-            <Tabs value={tab} onValueChange={handleTabChange}>
-              <TabsList>
-                <TabsTrigger value="all">Всі вакансії</TabsTrigger>
-                <TabsTrigger value="mine">Мої вакансії</TabsTrigger>
-              </TabsList>
-            </Tabs>
-
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Фільтр за статусом" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Всі статуси</SelectItem>
-                <SelectItem value="active">Активні</SelectItem>
-                <SelectItem value="paused">Призупинені</SelectItem>
-                <SelectItem value="closed">Закриті</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <Link href="/dashboard/requests/new">
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Створити запит
-            </Button>
-          </Link>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Фільтр за статусом" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Всі статуси</SelectItem>
+              <SelectItem value="active">Активні</SelectItem>
+              <SelectItem value="paused">Призупинені</SelectItem>
+              <SelectItem value="closed">Закриті</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
-        {/* Requests list */}
-        {loading ? (
-          <div className="flex items-center justify-center h-64">
-            <p className="text-muted-foreground">Завантаження...</p>
-          </div>
-        ) : filteredRequests.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 space-y-4">
-            <div className="p-4 rounded-full bg-gray-100">
-              <Briefcase className="h-8 w-8 text-gray-400" />
-            </div>
-            <div className="text-center">
-              <h3 className="text-lg font-medium">Немає запитів</h3>
-              <p className="text-muted-foreground">
-                {tab === 'mine'
-                  ? 'Вакансій, де ви є автором або менеджером, не знайдено'
-                  : statusFilter === 'all'
-                  ? 'Створіть свій перший запит на найм'
-                  : 'Немає запитів з таким статусом'}
-              </p>
-            </div>
-            {tab === 'all' && statusFilter === 'all' && (
-              <Link href="/dashboard/requests/new">
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Створити запит
-                </Button>
-              </Link>
-            )}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {filteredRequests.map((request) => (
-              <RequestCard key={request.id} request={request} />
-            ))}
-          </div>
-        )}
+        <Link href="/dashboard/requests/new">
+          <Button>
+            <Plus className="h-4 w-4 mr-2" />
+            Створити запит
+          </Button>
+        </Link>
       </div>
+
+      {/* Requests list */}
+      {loading ? (
+        <div className="flex items-center justify-center h-64">
+          <p className="text-muted-foreground">Завантаження...</p>
+        </div>
+      ) : filteredRequests.length === 0 ? (
+        <div className="flex flex-col items-center justify-center h-64 space-y-4">
+          <div className="p-4 rounded-full bg-gray-100">
+            <Briefcase className="h-8 w-8 text-gray-400" />
+          </div>
+          <div className="text-center">
+            <h3 className="text-lg font-medium">Немає запитів</h3>
+            <p className="text-muted-foreground">
+              {tab === 'mine'
+                ? 'Вакансій, де ви є автором або менеджером, не знайдено'
+                : statusFilter === 'all'
+                ? 'Створіть свій перший запит на найм'
+                : 'Немає запитів з таким статусом'}
+            </p>
+          </div>
+          {tab === 'all' && statusFilter === 'all' && (
+            <Link href="/dashboard/requests/new">
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Створити запит
+              </Button>
+            </Link>
+          )}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {filteredRequests.map((request) => (
+            <RequestCard key={request.id} request={request} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function RequestsPage() {
+  return (
+    <div className="flex flex-col h-full">
+      <Header title="Вакансії" />
+      <Suspense fallback={null}>
+        <RequestsContent />
+      </Suspense>
     </div>
   );
 }
