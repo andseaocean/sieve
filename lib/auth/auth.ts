@@ -1,7 +1,7 @@
 import { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
-import { createServerClient } from '@/lib/supabase/client';
+import { createServiceRoleClient } from '@/lib/supabase/client';
 import { Manager } from '@/lib/supabase/types';
 
 export const authOptions: NextAuthOptions = {
@@ -17,7 +17,7 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
-        const supabase = createServerClient();
+        const supabase = createServiceRoleClient();
 
         const { data, error } = await supabase
           .from('managers')
