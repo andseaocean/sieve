@@ -481,7 +481,7 @@ Ukrainian (primary), English, Turkish, Spanish — detection via `lib/language-u
 
 ## Important Patterns
 
-- **Supabase client:** Use `createClient()` from `lib/supabase/client.ts` for regular requests; use service role client (from `SUPABASE_SERVICE_ROLE_KEY`) in cron jobs and webhook handler to bypass RLS.
+- **Supabase client:** Use `createServiceRoleClient()` from `lib/supabase/client.ts` in **all** API routes — the following tables have RLS enabled and are inaccessible via the anon client: `managers`, `settings`, `automation_queue`, `candidate_conversations`, `request_managers`. Using `createServerClient()` (anon key) for queries on these tables will silently return `null` or empty results instead of an error. `createServerClient()` is effectively unused in API routes — always use service role.
 - **AI calls:** Text-only via `analyzeWithClaude()`, with PDF via `analyzeWithClaudeAndPDF()` in `lib/ai/claude.ts`. Prompts live in `lib/ai/prompts.ts`, outreach/decision prompts in `lib/ai/outreach-prompts.ts`.
 - **DB types:** `lib/supabase/types.ts` defines all table types — update when schema changes. Use `as never` cast for Supabase insert/update objects when TypeScript complains about strict typing.
 - **Migrations:** SQL files in `supabase/migrations/`, numbered sequentially (002-015).

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth';
-import { createServerClient } from '@/lib/supabase/client';
+import { createServiceRoleClient } from '@/lib/supabase/client';
 
 // POST — add manager to vacancy
 export async function POST(
@@ -21,7 +21,7 @@ export async function POST(
       return NextResponse.json({ error: 'manager_id is required' }, { status: 400 });
     }
 
-    const supabase = createServerClient();
+    const supabase = createServiceRoleClient();
 
     // Upsert — ignore conflict (already added)
     const { error } = await supabase

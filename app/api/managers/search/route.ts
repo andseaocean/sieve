@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth';
-import { createServerClient } from '@/lib/supabase/client';
+import { createServiceRoleClient } from '@/lib/supabase/client';
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
 
     const q = request.nextUrl.searchParams.get('q') ?? '';
 
-    const supabase = createServerClient();
+    const supabase = createServiceRoleClient();
     let query = supabase
       .from('managers')
       .select('id, name, email')

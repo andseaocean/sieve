@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import bcrypt from 'bcryptjs';
 import { authOptions } from '@/lib/auth/auth';
-import { createServerClient } from '@/lib/supabase/client';
+import { createServiceRoleClient } from '@/lib/supabase/client';
 
 // PUT /api/managers/[id] — update (admin only)
 export async function PUT(
@@ -48,7 +48,7 @@ export async function PUT(
       update.password_hash = await bcrypt.hash(body.password, 10);
     }
 
-    const supabase = createServerClient();
+    const supabase = createServiceRoleClient();
     const { data, error } = await supabase
       .from('managers')
       .update(update as never)

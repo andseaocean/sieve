@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth';
-import { createServerClient } from '@/lib/supabase/client';
+import { createServiceRoleClient } from '@/lib/supabase/client';
 
 // DELETE — remove manager from vacancy
 export async function DELETE(
@@ -15,7 +15,7 @@ export async function DELETE(
     }
 
     const { id, managerId } = await params;
-    const supabase = createServerClient();
+    const supabase = createServiceRoleClient();
 
     // Check if managerId is the request author — cannot remove
     const { data: req } = await supabase

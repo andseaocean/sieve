@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import bcrypt from 'bcryptjs';
 import { authOptions } from '@/lib/auth/auth';
-import { createServerClient } from '@/lib/supabase/client';
+import { createServiceRoleClient } from '@/lib/supabase/client';
 
 // GET /api/managers — list all (admin only)
 export async function GET() {
@@ -13,7 +13,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const supabase = createServerClient();
+    const supabase = createServiceRoleClient();
     const { data, error } = await supabase
       .from('managers')
       .select('id, name, email, role, is_active, created_at')
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Невірна роль' }, { status: 400 });
     }
 
-    const supabase = createServerClient();
+    const supabase = createServiceRoleClient();
 
     // Check email uniqueness
     const { data: existing } = await supabase
