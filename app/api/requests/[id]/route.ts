@@ -25,7 +25,7 @@ export async function GET(
           id,
           manager_id,
           added_at,
-          manager:managers(id, name, email)
+          manager:managers!manager_id(id, name, email)
         )
       `)
       .eq('id', id)
