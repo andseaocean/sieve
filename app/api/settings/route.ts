@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth';
-import { createServerClient } from '@/lib/supabase/client';
+import { createServiceRoleClient } from '@/lib/supabase/client';
 
 // GET /api/settings?key=company_info
 export async function GET(request: NextRequest) {
@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'key is required' }, { status: 400 });
     }
 
-    const supabase = createServerClient();
+    const supabase = createServiceRoleClient();
     const { data, error } = await supabase
       .from('settings')
       .select('*')
@@ -52,7 +52,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'key and value are required' }, { status: 400 });
     }
 
-    const supabase = createServerClient();
+    const supabase = createServiceRoleClient();
     const { error } = await supabase
       .from('settings')
       .upsert({ key, value, updated_at: new Date().toISOString() } as never, { onConflict: 'key' });

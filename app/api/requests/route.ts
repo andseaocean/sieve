@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth';
-import { createServerClient } from '@/lib/supabase/client';
+import { createServiceRoleClient } from '@/lib/supabase/client';
 import { RequestInsert } from '@/lib/supabase/types';
 
 // GET all requests
@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     }
 
     const filter = request.nextUrl.searchParams.get('filter');
-    const supabase = createServerClient();
+    const supabase = createServiceRoleClient();
 
     let query = supabase
       .from('requests')
@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
       salary_range: body.salary_range || null,
     };
 
-    const supabase = createServerClient();
+    const supabase = createServiceRoleClient();
     const { data, error } = await supabase
       .from('requests')
       .insert(newRequest as never)
@@ -107,11 +107,15 @@ export async function POST(request: NextRequest) {
     const createdRequest = data as { id: string };
 
     // Auto-add creator as first manager
-    await supabase.from('request_managers').insert({
+    const { error: rmError } = await supabase.from('request_managers').insert({
       request_id: createdRequest.id,
       manager_id: session.user.id,
       added_by: session.user.id,
     } as never);
+
+    if (rmError) {
+      console.error('Error adding creator to request_managers:', rmError);
+    }
 
     return NextResponse.json(data, { status: 201 });
   } catch (error) {

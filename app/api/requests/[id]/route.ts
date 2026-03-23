@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth';
-import { createServerClient } from '@/lib/supabase/client';
+import { createServiceRoleClient } from '@/lib/supabase/client';
 
 // GET single request
 export async function GET(
@@ -15,7 +15,7 @@ export async function GET(
     }
 
     const { id } = await params;
-    const supabase = createServerClient();
+    const supabase = createServiceRoleClient();
     const { data, error } = await supabase
       .from('requests')
       .select(`
@@ -89,7 +89,7 @@ export async function PATCH(
     if (body.outreach_template !== undefined) updateData.outreach_template = body.outreach_template;
     if (body.outreach_template_approved !== undefined) updateData.outreach_template_approved = body.outreach_template_approved;
 
-    const supabase = createServerClient();
+    const supabase = createServiceRoleClient();
     const { data, error } = await supabase
       .from('requests')
       .update(updateData as never)
@@ -121,7 +121,7 @@ export async function DELETE(
     }
 
     const { id } = await params;
-    const supabase = createServerClient();
+    const supabase = createServiceRoleClient();
     const { error } = await supabase
       .from('requests')
       .delete()
