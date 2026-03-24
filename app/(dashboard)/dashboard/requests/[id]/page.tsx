@@ -330,10 +330,10 @@ export default function RequestDetailsPage() {
                       </div>
                     </div>
 
-                    {/* Інфо для кандидатів */}
+                    {/* Додаткова інформація */}
                     {request.vacancy_info && (
                       <div className="space-y-2">
-                        <h3 className="font-semibold">Інфо для кандидатів</h3>
+                        <h3 className="font-semibold">Додаткова інформація</h3>
                         <p className="text-sm text-muted-foreground whitespace-pre-wrap">
                           {request.vacancy_info}
                         </p>
