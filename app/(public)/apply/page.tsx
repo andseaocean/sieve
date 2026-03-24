@@ -23,17 +23,15 @@ export default function ApplyPage() {
     last_name: '',
     email: '',
     phone: '',
+    birth_date: '',
     about_text: '',
-    why_vamos: '',
     key_skills: '',
     linkedin_url: '',
-    portfolio_url: '',
     telegram_username: '',
     preferred_contact_methods: ['email'] as ('email' | 'telegram')[],
   });
 
   useEffect(() => {
-    // Detect Telegram Mini App
     const tg = window.Telegram?.WebApp;
     const inTelegram = !!tg?.initData;
     setIsTelegram(inTelegram);
@@ -53,7 +51,6 @@ export default function ApplyPage() {
       }));
     }
 
-    // Fetch open vacancies
     fetch('/api/requests/open')
       .then((r) => r.json())
       .then((data: OpenVacancy[]) => setVacancies(Array.isArray(data) ? data : []))
@@ -78,12 +75,12 @@ export default function ApplyPage() {
       setError('Вкажіть email');
       return;
     }
-    if (!form.about_text.trim()) {
-      setError('Розкажіть про себе');
+    if (!form.phone.trim()) {
+      setError('Вкажіть номер телефону');
       return;
     }
-    if (!form.why_vamos.trim()) {
-      setError('Вкажіть, чому хочете у Vamos');
+    if (!form.about_text.trim()) {
+      setError('Розкажіть про себе');
       return;
     }
 
@@ -95,11 +92,17 @@ export default function ApplyPage() {
       fd.append('last_name', form.last_name.trim());
       fd.append('email', form.email.trim());
       fd.append('phone', form.phone.trim());
-      fd.append('about_text', form.about_text.trim());
-      fd.append('why_vamos', form.why_vamos.trim());
+
+      // Prepend birth date to about_text so it reaches AI analysis
+      const aboutWithBirthday = form.birth_date.trim()
+        ? `Дата народження: ${form.birth_date.trim()}\n\n${form.about_text.trim()}`
+        : form.about_text.trim();
+      fd.append('about_text', aboutWithBirthday);
+
+      fd.append('why_vamos', '');
       fd.append('key_skills', form.key_skills.trim());
       fd.append('linkedin_url', form.linkedin_url.trim());
-      fd.append('portfolio_url', form.portfolio_url.trim());
+      fd.append('portfolio_url', '');
       fd.append('telegram_username', form.telegram_username.trim());
       fd.append('preferred_contact_methods', JSON.stringify(form.preferred_contact_methods));
       fd.append('applied_request_ids', JSON.stringify(selectedVacancies));
@@ -146,7 +149,6 @@ export default function ApplyPage() {
                 name="first_name"
                 value={form.first_name}
                 onChange={handleChange}
-                placeholder="Іван"
                 required
               />
             </div>
@@ -157,7 +159,6 @@ export default function ApplyPage() {
                 name="last_name"
                 value={form.last_name}
                 onChange={handleChange}
-                placeholder="Петренко"
                 required
               />
             </div>
@@ -172,14 +173,13 @@ export default function ApplyPage() {
               type="email"
               value={form.email}
               onChange={handleChange}
-              placeholder="ivan@example.com"
               required
             />
           </div>
 
-          {/* Phone */}
+          {/* Phone — required */}
           <div className="space-y-1">
-            <Label htmlFor="phone">Телефон</Label>
+            <Label htmlFor="phone">Телефон *</Label>
             <Input
               id="phone"
               name="phone"
@@ -187,6 +187,19 @@ export default function ApplyPage() {
               value={form.phone}
               onChange={handleChange}
               placeholder="+380 XX XXX XX XX"
+              required
+            />
+          </div>
+
+          {/* Birth date */}
+          <div className="space-y-1">
+            <Label htmlFor="birth_date">Дата народження</Label>
+            <Input
+              id="birth_date"
+              name="birth_date"
+              type="date"
+              value={form.birth_date}
+              onChange={handleChange}
             />
           </div>
 
@@ -211,7 +224,7 @@ export default function ApplyPage() {
                       }}
                       className="h-4 w-4 rounded"
                     />
-                    <span className="text-sm capitalize">{method === 'email' ? 'Email' : 'Telegram'}</span>
+                    <span className="text-sm">{method === 'email' ? 'Email' : 'Telegram'}</span>
                   </label>
                 ))}
               </div>
@@ -245,20 +258,6 @@ export default function ApplyPage() {
             />
           </div>
 
-          {/* Why Vamos */}
-          <div className="space-y-1">
-            <Label htmlFor="why_vamos">Чому Vamos? *</Label>
-            <Textarea
-              id="why_vamos"
-              name="why_vamos"
-              value={form.why_vamos}
-              onChange={handleChange}
-              placeholder="Чому хочете працювати саме у нас?"
-              rows={3}
-              required
-            />
-          </div>
-
           {/* Key Skills */}
           <div className="space-y-1">
             <Label htmlFor="key_skills">Ключові навички</Label>
@@ -267,33 +266,18 @@ export default function ApplyPage() {
               name="key_skills"
               value={form.key_skills}
               onChange={handleChange}
-              placeholder="React, TypeScript, Node.js (через кому)"
             />
           </div>
 
-          {/* LinkedIn */}
+          {/* Social links */}
           <div className="space-y-1">
-            <Label htmlFor="linkedin_url">LinkedIn</Label>
+            <Label htmlFor="linkedin_url">Посилання на соцмережі</Label>
             <Input
               id="linkedin_url"
               name="linkedin_url"
-              type="url"
               value={form.linkedin_url}
               onChange={handleChange}
-              placeholder="https://linkedin.com/in/..."
-            />
-          </div>
-
-          {/* Portfolio */}
-          <div className="space-y-1">
-            <Label htmlFor="portfolio_url">Портфоліо / GitHub</Label>
-            <Input
-              id="portfolio_url"
-              name="portfolio_url"
-              type="url"
-              value={form.portfolio_url}
-              onChange={handleChange}
-              placeholder="https://github.com/..."
+              placeholder="LinkedIn, Instagram, Facebook..."
             />
           </div>
 
