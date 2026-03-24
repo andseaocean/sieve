@@ -49,6 +49,7 @@ const requestSchema = z.object({
   outreach_template: z.string().optional(),
   outreach_template_approved: z.boolean().optional(),
   salary_range: z.string().optional(),
+  vacancy_info: z.string().optional(),
 });
 
 type RequestFormData = z.infer<typeof requestSchema>;
@@ -230,6 +231,7 @@ export function RequestForm({ request, isEdit = false }: RequestFormProps) {
       outreach_template: request?.outreach_template || '',
       outreach_template_approved: request?.outreach_template_approved || false,
       salary_range: request?.salary_range || '',
+      vacancy_info: (request as Record<string, unknown>)?.vacancy_info as string || '',
     },
   });
 
@@ -250,6 +252,7 @@ export function RequestForm({ request, isEdit = false }: RequestFormProps) {
         outreach_template: data.outreach_template || null,
         outreach_template_approved: data.outreach_template_approved || false,
         salary_range: data.salary_range || null,
+        vacancy_info: data.vacancy_info || null,
         questionnaire_competency_ids: randomCompetencyIds,
         questionnaire_question_ids: selectedQuestionIds,
         questionnaire_custom_questions: [],
@@ -531,6 +534,26 @@ export function RequestForm({ request, isEdit = false }: RequestFormProps) {
               <span>Автоматичний outreach не запуститься, поки шаблон не затверджено.</span>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Інфо для кандидатів</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="vacancy_info">Специфічна інформація по вакансії</Label>
+            <Textarea
+              id="vacancy_info"
+              placeholder="Онбординг: перший тиждень у команді. Команда: 5 розробників, 2 QA. Випробувальний термін: 3 місяці. Графік: гнучкий, core-hours 11–17."
+              rows={6}
+              {...register('vacancy_info')}
+            />
+            <p className="text-sm text-muted-foreground">
+              Бот використає цей текст, щоб відповідати на питання кандидатів про деталі роботи, яких немає у загальному описі вакансії.
+            </p>
+          </div>
         </CardContent>
       </Card>
 

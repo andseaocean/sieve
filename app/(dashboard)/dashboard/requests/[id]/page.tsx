@@ -411,6 +411,20 @@ export default function RequestDetailsPage() {
                 </CardContent>
               </Card>
 
+              {/* Candidate info (vacancy_info) */}
+              {(request as Record<string, unknown>).vacancy_info && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Інфо для кандидатів</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                      {(request as Record<string, unknown>).vacancy_info as string}
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Requirements */}
               <Card>
                 <CardHeader>

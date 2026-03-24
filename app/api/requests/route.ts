@@ -90,6 +90,7 @@ export async function POST(request: NextRequest) {
       questionnaire_question_ids: body.questionnaire_question_ids || [],
       questionnaire_custom_questions: body.questionnaire_custom_questions || [],
       salary_range: body.salary_range || null,
+      vacancy_info: body.vacancy_info || null,
     };
 
     const supabase = createServiceRoleClient();

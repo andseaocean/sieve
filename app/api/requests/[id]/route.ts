@@ -88,6 +88,7 @@ export async function PATCH(
     if (body.salary_range !== undefined) updateData.salary_range = body.salary_range;
     if (body.outreach_template !== undefined) updateData.outreach_template = body.outreach_template;
     if (body.outreach_template_approved !== undefined) updateData.outreach_template_approved = body.outreach_template_approved;
+    if (body.vacancy_info !== undefined) updateData.vacancy_info = body.vacancy_info || null;
 
     const supabase = createServiceRoleClient();
     const { data, error } = await supabase

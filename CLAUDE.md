@@ -142,6 +142,7 @@ middleware.ts                     # Auth middleware (protects /dashboard/*)
 - questionnaire_competency_ids (UUID[]), questionnaire_question_ids (UUID[]), questionnaire_custom_questions (JSONB)
 - salary_range (TEXT, nullable) — зарплатна вилка (напр. "$1500–2500")
 - **created_by** (UUID FK → managers, nullable, migration 016) — автор вакансії; існуючі записи = NULL → "Автор невідомий"
+- **vacancy_info** (TEXT, nullable, migration 020) — специфічний контекст для кандидатів (онбординг, команда, графік тощо); використовується Telegram-ботом як пріоритетне джерело при відповіді на питання кандидата
 
 **request_managers** — Менеджери вакансії many-to-many (migration 016)
 - id, request_id (FK → requests), manager_id (FK → managers), added_at, added_by (FK → managers)
@@ -418,7 +419,7 @@ The system automates the entire candidate funnel via `automation_queue` jobs pro
 - Incoming messages classified as: positive, negative, question, test_submission, deadline_request
 - On `positive` response: sends test task immediately (bypasses cron queue)
 - **Outreach callback_query handling:** `outreach_yes:{matchId}` → removes inline buttons, queues questionnaire; `outreach_no:{matchId}` → removes buttons, updates pipeline_stage to outreach_declined
-- **Question handling** (`positive_with_questions`, `questions_about_job`): AI generates answer using `answerCandidateQuestion()` — fetches `company_info` from `settings` table + active vacancy context (title, salary_range, location, etc.)
+- **Question handling** (`positive_with_questions`, `questions_about_job`): AI generates answer using `answerCandidateQuestion()` — три шари контексту за пріоритетом: 1) `vacancy_info` (специфіка вакансії: онбординг, команда, процес), 2) деталі вакансії (title, salary_range, location, employment_type, remote_policy), 3) `company_info` зі `settings`. Фетч вакансії через `candidate_request_matches` → `requests` (поля включають `vacancy_info`)
 - Logs all conversations to candidate_conversations table
 
 ### Telegram Mini App Integration

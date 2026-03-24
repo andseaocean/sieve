@@ -235,7 +235,7 @@ async function handleMessage(message: TelegramMessage) {
           request_id,
           requests!inner (
             title, description, salary_range, required_skills,
-            location, employment_type, remote_policy
+            location, employment_type, remote_policy, vacancy_info
           )
         `)
         .eq('candidate_id', candidate.id)
@@ -255,6 +255,7 @@ async function handleMessage(message: TelegramMessage) {
               location: (req.location as string | null) ?? null,
               employment_type: (req.employment_type as string | null) ?? null,
               remote_policy: (req.remote_policy as string | null) ?? null,
+              vacancy_info: (req.vacancy_info as string | null) ?? null,
             };
           })()
         : undefined;

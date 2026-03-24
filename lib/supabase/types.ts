@@ -84,6 +84,7 @@ export type Database = {
           outreach_template_approved: boolean;
           salary_range: string | null;
           created_by: string | null;
+          vacancy_info: string | null;
         };
         Insert: {
           id?: string;
@@ -115,6 +116,7 @@ export type Database = {
           outreach_template_approved?: boolean;
           salary_range?: string | null;
           created_by?: string | null;
+          vacancy_info?: string | null;
         };
         Update: {
           id?: string;
@@ -146,6 +148,7 @@ export type Database = {
           outreach_template_approved?: boolean;
           salary_range?: string | null;
           created_by?: string | null;
+          vacancy_info?: string | null;
         };
       };
       request_managers: {

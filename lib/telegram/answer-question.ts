@@ -12,6 +12,7 @@ interface VacancyContext {
   location: string | null;
   employment_type: string | null;
   remote_policy: string | null;
+  vacancy_info?: string | null;
 }
 
 export async function answerCandidateQuestion(
@@ -19,28 +20,33 @@ export async function answerCandidateQuestion(
   companyInfo: string,
   vacancyContext?: VacancyContext
 ): Promise<string> {
-  const vacancySection = vacancyContext
-    ? `
-ІНФОРМАЦІЯ ПРО ВАКАНСІЮ "${vacancyContext.title}":
-- Зарплатна вилка: ${vacancyContext.salary_range || 'наразі погоджується'}
-- Локація: ${vacancyContext.location || 'не вказано'}
-- Формат: ${vacancyContext.employment_type || 'не вказано'}, ${vacancyContext.remote_policy || 'не вказано'}
-- Вимоги: ${vacancyContext.required_skills || 'не вказано'}
-- Опис: ${vacancyContext.description || 'не вказано'}`
+  const vacancyInfoBlock = vacancyContext?.vacancy_info?.trim()
+    ? `## Специфічна інформація по вакансії "${vacancyContext.title}"\n${vacancyContext.vacancy_info}\n\n`
     : '';
 
-  const systemPrompt = `Ти — дружній HR-асистент компанії Vamos. Відповідаєш на питання кандидата в Telegram.
+  const vacancySection = vacancyContext
+    ? `
+## Деталі вакансії
+Посада: ${vacancyContext.title}
+Зарплата: ${vacancyContext.salary_range || 'не вказано'}
+Локація: ${vacancyContext.location || 'не вказано'}
+Зайнятість: ${vacancyContext.employment_type || 'не вказано'}
+Remote: ${vacancyContext.remote_policy || 'не вказано'}`
+    : '';
+
+  const systemPrompt = `Ти — HR-асистент компанії Vamos. Відповідай на питання кандидата коротко, дружньо та по суті. Якщо інформації немає — чесно скажи, що уточниш у рекрутера.
+
+${vacancyInfoBlock}${vacancySection}
+
+## Загальна інформація про компанію
+${companyInfo}
 
 Правила:
-- Відповідай ТІЛЬКИ на основі наданої інформації нижче
-- Якщо відповіді немає в інформації — скажи: "Я уточню це у команди і дам відповідь найближчим часом 🙏"
+- Відповідай ТІЛЬКИ на основі наданої інформації
+- Якщо відповіді немає — скажи: "Я уточню це у команди і дам відповідь найближчим часом 🙏"
 - Відповідай тією ж мовою, якою написав кандидат
 - Будь коротким і дружнім (2-4 речення максимум)
-- Не вигадуй факти
-
-ІНФОРМАЦІЯ ПРО КОМПАНІЮ:
-${companyInfo}
-${vacancySection}`;
+- Не вигадуй факти`;
 
   try {
     const message = await anthropic.messages.create({
