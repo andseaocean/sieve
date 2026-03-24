@@ -38,7 +38,9 @@ app/
     sourcing/                     # Quick check (bookmarklet) + setup
     settings/                     # Company Info settings page (admin only)
     settings/questionnaire/       # Soft Skills admin (competency/question bank)
-  (public)/                       # Minimal layout wrapper (no public pages; questionnaire & submit-test are top-level)
+  (public)/                       # Minimal layout wrapper
+    apply/                        # Application form (Telegram Mini App + web fallback)
+    thank-you/                    # Post-submission confirmation page
   page.tsx                        # Root redirect → /login
   submit-test/                    # Test task submission page
   questionnaire/[token]/          # Public questionnaire form (token-based access)
