@@ -14,6 +14,7 @@ export default function ApplyPage() {
   const [isTelegram, setIsTelegram] = useState(false);
   const [vacancies, setVacancies] = useState<OpenVacancy[]>([]);
   const [selectedVacancies, setSelectedVacancies] = useState<string[]>([]);
+  const [unknownVacancy, setUnknownVacancy] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -79,7 +80,7 @@ export default function ApplyPage() {
       setError('Розкажіть про себе');
       return;
     }
-    if (vacancies.length > 0 && selectedVacancies.length === 0) {
+    if (vacancies.length > 0 && selectedVacancies.length === 0 && !unknownVacancy) {
       setError('Оберіть вакансію');
       return;
     }
@@ -211,7 +212,8 @@ export default function ApplyPage() {
                 vacancies={vacancies}
                 selected={selectedVacancies}
                 onChange={setSelectedVacancies}
-                allowUnknown={false}
+                unknownChecked={unknownVacancy}
+                onUnknownChange={setUnknownVacancy}
               />
             </div>
           )}

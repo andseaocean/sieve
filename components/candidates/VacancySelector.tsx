@@ -23,6 +23,8 @@ interface VacancySelectorProps {
   selected: string[]; // UUID[]
   onChange: (ids: string[]) => void;
   allowUnknown?: boolean;
+  unknownChecked?: boolean;
+  onUnknownChange?: (checked: boolean) => void;
   error?: string;
 }
 
@@ -31,9 +33,11 @@ export function VacancySelector({
   selected,
   onChange,
   allowUnknown = true,
+  unknownChecked = false,
+  onUnknownChange,
   error,
 }: VacancySelectorProps) {
-  const isUnknown = selected.length === 0 && allowUnknown;
+  const isUnknown = unknownChecked;
 
   const handleVacancyToggle = (id: string) => {
     if (selected.includes(id)) {
@@ -44,12 +48,9 @@ export function VacancySelector({
   };
 
   const handleUnknownToggle = () => {
-    if (isUnknown) {
-      // De-select "unknown" — nothing to do, just stay empty
-      // (user needs to pick a vacancy)
-    } else {
-      onChange([]);
-    }
+    const next = !isUnknown;
+    if (next) onChange([]);
+    onUnknownChange?.(next);
   };
 
   if (vacancies.length === 0) {
