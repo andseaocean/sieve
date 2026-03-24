@@ -231,7 +231,7 @@ export function RequestForm({ request, isEdit = false }: RequestFormProps) {
       outreach_template: request?.outreach_template || '',
       outreach_template_approved: request?.outreach_template_approved || false,
       salary_range: request?.salary_range || '',
-      vacancy_info: (request as Record<string, unknown>)?.vacancy_info as string || '',
+      vacancy_info: request?.vacancy_info || '',
     },
   });
 
