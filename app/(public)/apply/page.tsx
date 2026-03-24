@@ -83,6 +83,10 @@ export default function ApplyPage() {
       setError('Розкажіть про себе');
       return;
     }
+    if (vacancies.length > 0 && selectedVacancies.length === 0) {
+      setError('Оберіть вакансію');
+      return;
+    }
 
     setIsSubmitting(true);
 
@@ -203,6 +207,19 @@ export default function ApplyPage() {
             />
           </div>
 
+          {/* Vacancies — required, right after birth date */}
+          {vacancies.length > 0 && (
+            <div className="space-y-2">
+              <Label>На яку вакансію подаєте заявку? *</Label>
+              <VacancySelector
+                vacancies={vacancies}
+                selected={selectedVacancies}
+                onChange={setSelectedVacancies}
+                allowUnknown={false}
+              />
+            </div>
+          )}
+
           {/* Contact method — hidden in Telegram */}
           {!isTelegram && (
             <div className="space-y-1">
@@ -292,18 +309,6 @@ export default function ApplyPage() {
               className="cursor-pointer"
             />
           </div>
-
-          {/* Vacancies */}
-          {vacancies.length > 0 && (
-            <div className="space-y-2">
-              <Label>На яку вакансію подаєте заявку?</Label>
-              <VacancySelector
-                vacancies={vacancies}
-                selected={selectedVacancies}
-                onChange={setSelectedVacancies}
-              />
-            </div>
-          )}
 
           {error && (
             <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
