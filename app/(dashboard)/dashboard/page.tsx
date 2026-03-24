@@ -72,7 +72,7 @@ export default function DashboardPage() {
 
   const statCards = [
     {
-      title: 'Активні запити',
+      title: 'Активні вакансії',
       value: stats.activeRequests,
       icon: Briefcase,
       color: 'text-blue-600',
@@ -103,7 +103,7 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <Header title="Dashboard" />
+      <Header title="Головна" />
 
       <div className="flex-1 p-6 space-y-6">
         {/* Welcome message */}

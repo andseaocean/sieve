@@ -70,7 +70,7 @@ export default function CandidatesPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <Header title="Candidates" />
+      <Header title="Кандидати" />
 
       <div className="flex-1 p-6 overflow-auto">
         <div className="flex gap-6">

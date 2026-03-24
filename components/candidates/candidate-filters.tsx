@@ -78,26 +78,6 @@ export function CandidateFilters({
           </div>
         </div>
 
-        {/* Category */}
-        <div className="space-y-2">
-          <Label>Категорія AI</Label>
-          <Select
-            value={filters.category}
-            onValueChange={(value) => updateFilter('category', value)}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Всі категорії" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Всі категорії</SelectItem>
-              <SelectItem value="top_tier">Топ кандидат</SelectItem>
-              <SelectItem value="strong">Сильний</SelectItem>
-              <SelectItem value="potential">Потенційний</SelectItem>
-              <SelectItem value="not_fit">Не підходить</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
         {/* Vacancy filter */}
         <div className="space-y-2">
           <Label>Вакансія</Label>
