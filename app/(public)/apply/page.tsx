@@ -40,13 +40,9 @@ export default function ApplyPage() {
       tg.ready();
       tg.expand();
       const username = tg.initDataUnsafe?.user?.username || '';
-      const firstName = tg.initDataUnsafe?.user?.first_name || '';
-      const lastName = tg.initDataUnsafe?.user?.last_name || '';
       setForm((prev) => ({
         ...prev,
         telegram_username: username,
-        first_name: firstName,
-        last_name: lastName,
         preferred_contact_methods: ['telegram'],
       }));
     }
