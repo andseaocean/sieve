@@ -12,13 +12,14 @@ import {
   LogOut,
   Search,
   Settings,
+  BookOpen,
 } from 'lucide-react';
 
 const navigation = [
   { name: 'Головна', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Вакансії', href: '/dashboard/requests', icon: Briefcase },
   { name: 'Кандидати', href: '/dashboard/candidates', icon: Users },
-  { name: 'Навички', href: '/dashboard/settings/questionnaire', icon: Settings },
+  { name: 'Навички', href: '/dashboard/settings/questionnaire', icon: BookOpen },
   { name: 'Сорсинг', href: '/dashboard/sourcing', icon: Search },
 ];
 
@@ -66,7 +67,7 @@ export function Sidebar() {
           href="/dashboard/settings"
           className={cn(
             'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-            pathname.startsWith('/dashboard/settings')
+            pathname === '/dashboard/settings' || (pathname.startsWith('/dashboard/settings/') && !pathname.startsWith('/dashboard/settings/questionnaire'))
               ? 'bg-primary text-white'
               : 'text-gray-700 hover:bg-gray-100'
           )}
