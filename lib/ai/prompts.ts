@@ -1,24 +1,21 @@
 import { Candidate, Request } from '@/lib/supabase/types';
 
 export const CANDIDATE_ANALYSIS_PROMPT = (candidate: Candidate, request: Request, resumeFormatted?: string) => `
-You are an expert HR analyst for Vamos, an AI-first company.
+You are an expert HR analyst for Vamos.
 
-Analyze this candidate application against the hiring request criteria and provide a detailed assessment.
+Analyze this candidate against the hiring request criteria.
 
 HIRING REQUEST CRITERIA:
 Title: ${request.title}
 Required Skills: ${request.required_skills}
 Nice-to-Have Skills: ${request.nice_to_have_skills || 'None specified'}
 Soft Skills: ${request.soft_skills}
-AI Orientation: ${request.ai_orientation || 'Not specified'}
 Red Flags to Watch For: ${request.red_flags || 'None specified'}
 
 CANDIDATE DATA:
 Name: ${candidate.first_name} ${candidate.last_name}
 About: ${candidate.about_text || 'Not provided'}
 Skills: ${candidate.key_skills?.join(', ') || 'Not provided'}
-LinkedIn: ${candidate.linkedin_url || 'Not provided'}
-Portfolio: ${candidate.portfolio_url || 'Not provided'}
 
 ${resumeFormatted ? `\nRESUME DATA:\n${resumeFormatted}\n` : ''}
 
@@ -40,10 +37,9 @@ EVALUATION CRITERIA:
 6. Recommendation: Should we contact this candidate? (Yes/No and why)
 
 IMPORTANT:
-- Be objective and fair
-- Focus exclusively on described experience (projects, roles, technologies, results) and skill fit with the request requirements
+- Base your evaluation ONLY on what the candidate wrote about themselves and their resume (if provided) — do not factor in LinkedIn/portfolio presence, tech stack preferences, or AI tool usage
+- Focus on described experience (projects, roles, results) and match with required skills
 - Pay attention to red flags
-- Do NOT factor in motivation, cultural fit, or AI tool usage — evaluate only skills and experience
 - ALL text values in the response MUST be in Ukrainian (УКРАЇНСЬКОЮ мовою)
 
 Return your analysis as a JSON object with this structure:
@@ -83,7 +79,6 @@ Title: ${request.title}
 Required Skills: ${request.required_skills}
 Nice-to-Have Skills: ${request.nice_to_have_skills || 'None'}
 Soft Skills: ${request.soft_skills}
-AI Orientation: ${request.ai_orientation || 'Not specified'}
 Priority: ${request.priority}
 
 Calculate a match score (0-100) based on:
@@ -116,7 +111,7 @@ export const GENERATE_JOB_DESCRIPTION_PROMPT = (data: {
   ai_orientation?: string;
   red_flags?: string;
 }) => `
-You are a professional recruiter at Vamos, an AI-first company.
+You are a professional recruiter at Vamos.
 Generate a compelling job posting in Ukrainian based on the following criteria.
 
 Job Title: ${data.title}
@@ -127,16 +122,15 @@ Role Description: ${data.description || 'None specified'}
 Location: ${data.location || 'Not specified'}
 Employment Type: ${data.employment_type || 'Not specified'}
 Remote Policy: ${data.remote_policy || 'Not specified'}
-AI Orientation: ${data.ai_orientation || 'Not specified'}
 Red Flags to avoid: ${data.red_flags || 'None specified'}
 
 Generate a professional job posting with the following structure:
 1. **Eye-catching title** with role name
-2. **About Vamos** (2-3 sentences) - emphasize AI-first approach
+2. **About Vamos** (2-3 sentences) - focus on the team and the role
 3. **What you'll do** (3-5 bullet points based on responsibilities/description)
 4. **What we're looking for** (required skills formatted as bullets)
 5. **Nice to have** (if provided)
-6. **What we offer** (standard Vamos benefits - flexible schedule, remote-first, growth opportunities, modern tech stack)
+6. **What we offer** (standard Vamos benefits - flexible schedule, remote-first, growth opportunities)
 7. **How to apply** - brief call to action
 
 Tone: Professional but friendly, modern, tech-focused.
@@ -155,7 +149,7 @@ export const OUTREACH_PERSONALIZATION_PROMPT = (
   candidate: Candidate,
   request: Request
 ) => `
-Ти — дружній HR-спеціаліст компанії Vamos (AI-first tech company).
+Ти — дружній HR-спеціаліст компанії Vamos.
 Персоналізуй привітальне повідомлення для кандидата УКРАЇНСЬКОЮ мовою, використовуючи шаблон менеджера як основу.
 
 === ШАБЛОН МЕНЕДЖЕРА ===
@@ -193,16 +187,14 @@ ${template}
 // General candidate analysis without a specific request
 // hasPDF: indicates whether a PDF document is attached to the message
 export const GENERAL_CANDIDATE_ANALYSIS_PROMPT = (candidate: Candidate, resumeFormatted?: string, hasPDF?: boolean) => `
-You are an expert HR analyst for Vamos, an AI-first company.
+You are an expert HR analyst for Vamos.
 
-Analyze this candidate profile and provide a general assessment of their potential fit for a tech company.
+Analyze this candidate profile based solely on what they wrote about themselves and their resume (if provided).
 
 CANDIDATE DATA:
 Name: ${candidate.first_name} ${candidate.last_name}
 About: ${candidate.about_text || 'Not provided'}
 Skills: ${candidate.key_skills?.join(', ') || 'Not provided'}
-LinkedIn: ${candidate.linkedin_url || 'Not provided'}
-Portfolio: ${candidate.portfolio_url || 'Not provided'}
 
 ${resumeFormatted ? `\nRESUME DATA:\n${resumeFormatted}\n` : ''}
 
@@ -228,9 +220,8 @@ EVALUATION CRITERIA:
 7. Recommendation: Should we pursue this candidate? (Yes/No and why)
 
 IMPORTANT:
-- Be objective and fair
-- Focus exclusively on described experience (projects, roles, technologies, results) and demonstrated skills
-- Do NOT factor in motivation, cultural fit, or AI tool usage — evaluate only skills and experience
+- Base your evaluation ONLY on what the candidate wrote about themselves and their resume — do not factor in LinkedIn/portfolio presence, tech stack preferences, or AI tool usage
+- Focus on described experience (projects, roles, results) and demonstrated skills
 - ALL text values in the response MUST be in Ukrainian (УКРАЇНСЬКОЮ мовою)${hasPDF || resumeFormatted ? `
 - Use ALL available resume data (work experience, skills, education, achievements) to enrich your assessment
 - Relevant work experience from resume should positively influence the score
