@@ -130,39 +130,17 @@ export function formatScheduledTimeRelative(date: Date): string {
 }
 
 /**
- * Determine which delivery method to use based on preferences
- *
- * Priority: Telegram > Email (as per spec)
- * Falls back to email if telegram is selected but no username provided
+ * Determine which delivery method to use based on preferences.
+ * Only Telegram is supported. Returns null if no Telegram username available.
  */
 export function determineDeliveryMethod(
   preferredMethods: ContactMethod[] | string | null,
   telegramUsername: string | null
-): ContactMethod {
-  // Handle various formats: array, JSON string, or null
-  let methods: ContactMethod[];
-
-  if (!preferredMethods) {
-    methods = ['email'];
-  } else if (typeof preferredMethods === 'string') {
-    try {
-      methods = JSON.parse(preferredMethods) as ContactMethod[];
-    } catch {
-      methods = ['email'];
-    }
-  } else if (Array.isArray(preferredMethods)) {
-    methods = preferredMethods;
-  } else {
-    methods = ['email'];
-  }
-
-  // Prefer telegram if selected AND username is provided
-  if (methods.includes('telegram') && telegramUsername && telegramUsername.trim().length > 0) {
+): ContactMethod | null {
+  if (telegramUsername && telegramUsername.trim().length > 0) {
     return 'telegram';
   }
-
-  // Default to email
-  return 'email';
+  return null;
 }
 
 /**

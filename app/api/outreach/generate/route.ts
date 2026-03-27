@@ -63,13 +63,7 @@ export async function POST(request: NextRequest) {
     );
 
     // Check if contact is possible
-    if (contactMethod === 'email' && !candidate.email) {
-      return NextResponse.json({
-        error: 'No email address available for this candidate',
-      }, { status: 400 });
-    }
-
-    if (contactMethod === 'telegram' && !candidate.telegram_username) {
+    if (!contactMethod) {
       return NextResponse.json({
         error: 'No Telegram username available for this candidate',
       }, { status: 400 });

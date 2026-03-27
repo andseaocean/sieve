@@ -6,7 +6,6 @@
 
 import { createServerClient } from '@/lib/supabase/client';
 import { OutreachQueue, Candidate } from '@/lib/supabase/types';
-import { sendOutreachEmail, formatEmailHtml, generateEmailSubject } from './email-service';
 import { sendTelegramMessageFromHandler } from '@/lib/automation/handlers';
 
 interface OutreachItemWithCandidate extends OutreachQueue {
@@ -39,11 +38,7 @@ export async function processOutreachItem(item: OutreachItemWithCandidate): Prom
 
   let result: ProcessResult;
 
-  if (item.delivery_method === 'telegram') {
-    result = await sendViaTelegram(item);
-  } else {
-    result = await sendViaEmail(item);
-  }
+  result = await sendViaTelegram(item);
 
   if (result.success) {
     // Update queue status to sent
@@ -128,32 +123,6 @@ async function sendViaTelegram(item: OutreachItemWithCandidate): Promise<Process
   }
 }
 
-/**
- * Send outreach via email
- */
-async function sendViaEmail(item: OutreachItemWithCandidate): Promise<ProcessResult> {
-  const candidate = item.candidates;
-
-  if (!candidate.email) {
-    return {
-      success: false,
-      error: 'Candidate email not found',
-    };
-  }
-
-  const subject = generateEmailSubject(candidate.first_name);
-  const html = formatEmailHtml(item.intro_message, candidate.first_name);
-  const text = item.intro_message;
-
-  const result = await sendOutreachEmail({
-    to: candidate.email,
-    subject,
-    html,
-    text,
-  });
-
-  return result;
-}
 
 /**
  * Process multiple outreach items in batch

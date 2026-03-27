@@ -16,7 +16,6 @@ import {
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import {
-  Mail,
   MessageCircle,
   Clock,
   Send,
@@ -33,7 +32,6 @@ interface OutreachPreviewProps {
   candidateId: string;
   candidateName?: string;
   aiScore?: number | null;
-  email?: string | null;
   telegramUsername?: string | null;
   preferredContactMethods?: string[] | null;
 }
@@ -41,7 +39,7 @@ interface OutreachPreviewProps {
 interface OutreachData {
   id: string;
   introMessage: string;
-  deliveryMethod: 'email' | 'telegram';
+  deliveryMethod: 'telegram';
   scheduledFor: string;
   scheduledForDisplay: string;
   status: 'scheduled' | 'processing' | 'sent' | 'failed' | 'cancelled';
@@ -81,7 +79,6 @@ export function OutreachPreview({
   candidateId,
   candidateName,
   aiScore,
-  email,
   telegramUsername,
   preferredContactMethods,
 }: OutreachPreviewProps) {
@@ -92,7 +89,7 @@ export function OutreachPreview({
   // On-demand generation state
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedMessage, setGeneratedMessage] = useState<string | null>(null);
-  const [detectedContactMethod, setDetectedContactMethod] = useState<'email' | 'telegram' | null>(null);
+  const [detectedContactMethod, setDetectedContactMethod] = useState<'telegram' | null>(null);
 
   // Editing state
   const [editedMessage, setEditedMessage] = useState('');
@@ -130,17 +127,9 @@ export function OutreachPreview({
   };
 
   // Determine contact method availability
-  const getContactMethod = (): 'email' | 'telegram' | null => {
-    if (detectedContactMethod) return detectedContactMethod;
-
-    const methods = Array.isArray(preferredContactMethods) ? preferredContactMethods : [];
-
-    if (methods.includes('telegram') && telegramUsername) {
-      return 'telegram';
-    }
-    if (email) {
-      return 'email';
-    }
+  const getContactMethod = (): 'telegram' | null => {
+    if (detectedContactMethod === 'telegram') return 'telegram';
+    if (telegramUsername) return 'telegram';
     return null;
   };
 
@@ -342,11 +331,7 @@ export function OutreachPreview({
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-lg">
-              {outreach.deliveryMethod === 'email' ? (
-                <Mail className="h-5 w-5" />
-              ) : (
-                <MessageCircle className="h-5 w-5" />
-              )}
+              <MessageCircle className="h-5 w-5" />
               Outreach повідомлення
             </CardTitle>
             <Badge variant="outline" className={status.color}>
@@ -378,17 +363,8 @@ export function OutreachPreview({
           <div className="flex items-center gap-2 text-sm">
             <span className="text-muted-foreground">Канал:</span>
             <Badge variant="secondary">
-              {outreach.deliveryMethod === 'email' ? (
-                <>
-                  <Mail className="h-3 w-3 mr-1" />
-                  Email
-                </>
-              ) : (
-                <>
-                  <MessageCircle className="h-3 w-3 mr-1" />
-                  Telegram
-                </>
-              )}
+              <MessageCircle className="h-3 w-3 mr-1" />
+              Telegram
             </Badge>
           </div>
 
@@ -512,7 +488,7 @@ export function OutreachPreview({
             <div>
               <h4 className="font-medium text-gray-900">Немає способу зв'язку</h4>
               <p className="text-sm text-gray-600 mt-1">
-                Цей кандидат не вказав email або Telegram для зв'язку.
+                Цей кандидат не вказав Telegram для зв'язку.
               </p>
             </div>
           </div>
@@ -530,7 +506,7 @@ export function OutreachPreview({
             Outreach повідомлення
           </CardTitle>
           <div className="text-sm text-muted-foreground">
-            {contactMethod === 'email' ? `${email}` : `@${telegramUsername}`}
+            {`@${telegramUsername}`}
           </div>
         </div>
       </CardHeader>
@@ -583,17 +559,8 @@ export function OutreachPreview({
             <div className="flex items-center gap-2 text-sm">
               <span className="text-muted-foreground">Канал:</span>
               <Badge variant="secondary">
-                {(detectedContactMethod || contactMethod) === 'email' ? (
-                  <>
-                    <Mail className="h-3 w-3 mr-1" />
-                    Email ({email})
-                  </>
-                ) : (
-                  <>
-                    <MessageCircle className="h-3 w-3 mr-1" />
-                    Telegram (@{telegramUsername})
-                  </>
-                )}
+                <MessageCircle className="h-3 w-3 mr-1" />
+                Telegram (@{telegramUsername})
               </Badge>
             </div>
 
