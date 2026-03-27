@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     const original_language = (formData.get('original_language') as string) || 'en';
 
     // Validate required fields
-    if (!first_name || !last_name || !email || !about_text || !why_vamos) {
+    if (!first_name || !last_name || !email || !about_text) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
