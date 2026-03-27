@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/client';
 import { Candidate } from '@/lib/supabase/types';
 
@@ -189,20 +189,27 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Fire-and-forget: trigger background AI analysis immediately
+    // Trigger background AI analysis after response is sent
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000';
     const internalSecret = process.env.INTERNAL_API_SECRET || 'default-secret';
-    fetch(`${appUrl}/api/candidates/${candidate.id}/analyze-background`, {
-      method: 'POST',
-      headers: {
-        'x-internal-secret': internalSecret,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ applied_request_ids }),
-    }).catch((err) => {
-      console.error('Failed to trigger background analysis:', err);
+    const candidateId = candidate.id;
+    const requestIdsToAnalyze = applied_request_ids;
+
+    after(async () => {
+      try {
+        await fetch(`${appUrl}/api/candidates/${candidateId}/analyze-background`, {
+          method: 'POST',
+          headers: {
+            'x-internal-secret': internalSecret,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ applied_request_ids: requestIdsToAnalyze }),
+        });
+        console.log(`Background AI analysis triggered for candidate ${candidateId}`);
+      } catch (err) {
+        console.error('Failed to trigger background analysis:', err);
+      }
     });
-    console.log(`Background AI analysis triggered for candidate ${candidate.id}`);
 
     return NextResponse.json({
       success: true,
