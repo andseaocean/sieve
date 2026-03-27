@@ -326,12 +326,12 @@ export async function POST(
               break;
             }
           }
-        } else {
+        } else if (primaryRequestId) {
           // Verify primary request has approved template
           const { data: reqCheck } = await supabase
             .from('requests')
             .select('id')
-            .eq('id', primaryRequestId)
+            .eq('id', primaryRequestId as string)
             .eq('outreach_template_approved', true)
             .single();
           if (!reqCheck) outreachRequestId = null;
