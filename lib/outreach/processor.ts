@@ -7,6 +7,7 @@
 import { createServerClient } from '@/lib/supabase/client';
 import { OutreachQueue, Candidate } from '@/lib/supabase/types';
 import { sendOutreachEmail, formatEmailHtml, generateEmailSubject } from './email-service';
+import { sendTelegramMessageFromHandler } from '@/lib/automation/handlers';
 
 interface OutreachItemWithCandidate extends OutreachQueue {
   candidates: Candidate;
@@ -38,12 +39,9 @@ export async function processOutreachItem(item: OutreachItemWithCandidate): Prom
 
   let result: ProcessResult;
 
-  // Currently only email is supported (Telegram for future)
-  if (item.delivery_method === 'email') {
-    result = await sendViaEmail(item);
+  if (item.delivery_method === 'telegram') {
+    result = await sendViaTelegram(item);
   } else {
-    // Telegram fallback to email for now
-    console.log(`Telegram not implemented, falling back to email for candidate ${item.candidate_id}`);
     result = await sendViaEmail(item);
   }
 
@@ -75,7 +73,7 @@ export async function processOutreachItem(item: OutreachItemWithCandidate): Prom
         request_id: item.request_id,
         message_type: 'intro',
         content: item.intro_message,
-        delivery_method: 'email', // Always email for now
+        delivery_method: item.delivery_method || 'email',
         sent_at: now,
         external_message_id: result.messageId || null,
       } as never);
@@ -99,6 +97,35 @@ export async function processOutreachItem(item: OutreachItemWithCandidate): Prom
   }
 
   return result;
+}
+
+/**
+ * Send outreach via Telegram
+ */
+async function sendViaTelegram(item: OutreachItemWithCandidate): Promise<ProcessResult> {
+  const candidate = item.candidates;
+
+  if (!candidate.telegram_chat_id) {
+    return {
+      success: false,
+      error: 'Candidate has no telegram_chat_id',
+    };
+  }
+
+  try {
+    const result = await sendTelegramMessageFromHandler(candidate.telegram_chat_id, item.intro_message || '');
+
+    if (!result.ok) {
+      return { success: false, error: 'Telegram API returned not ok' };
+    }
+
+    return { success: true, messageId: String(result.result?.message_id ?? '') };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown Telegram error',
+    };
+  }
 }
 
 /**
