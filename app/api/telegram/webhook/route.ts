@@ -167,9 +167,16 @@ async function handleMessage(message: TelegramMessage) {
   switch (classification.category) {
     case 'positive_ready': {
       const stage = candidate.pipeline_stage as string | null;
+      const laterStages = ['test_sent', 'test_done', 'interview', 'hired', 'rejected'];
 
-      if (stage === 'outreach_sent') {
-        // Candidate responded positively via text instead of button — treat same as outreach_yes
+      if (stage === 'questionnaire_sent' || stage === 'questionnaire_done') {
+        // Already in questionnaire flow — just acknowledge
+        await sendTelegramMessage(chatId, 'Дякуємо! Якщо маєте питання — пишіть.');
+      } else if (!stage || !laterStages.includes(stage)) {
+        // Before test stage (new/analyzed/outreach_sent) — queue questionnaire
+        const candidateWithPrimary = candidate as Candidate & { primary_request_id?: string };
+
+        // Try candidate_request_matches first, fall back to primary_request_id
         const { data: matchData } = await supabase
           .from('candidate_request_matches')
           .select('request_id')
@@ -179,7 +186,9 @@ async function handleMessage(message: TelegramMessage) {
           .single();
 
         const match = matchData as { request_id: string } | null;
-        if (match) {
+        const requestId = match?.request_id ?? candidateWithPrimary.primary_request_id ?? null;
+
+        if (requestId) {
           await sendTelegramMessage(chatId, 'Чудово! Надсилаємо вам анкету — займе близько 20-30 хвилин.');
           await supabase
             .from('candidates')
@@ -190,16 +199,13 @@ async function handleMessage(message: TelegramMessage) {
             supabase,
             actionType: 'send_questionnaire',
             candidateId: candidate.id,
-            requestId: match.request_id,
+            requestId,
           });
         } else {
           await sendTelegramMessage(chatId, 'Дякуємо за відповідь! Найближчим часом надішлемо вам деталі.');
         }
-      } else if (stage === 'questionnaire_sent' || stage === 'questionnaire_done') {
-        // Already in questionnaire flow — just acknowledge
-        await sendTelegramMessage(chatId, 'Дякуємо! Якщо маєте питання — пишіть.');
       } else {
-        // Later stages (test_sent etc.) — original behavior
+        // test_sent and later — original behavior
         await sendTestTaskDirectly(chatId, candidate, supabase);
       }
       break;
