@@ -166,8 +166,42 @@ async function handleMessage(message: TelegramMessage) {
   // Handle based on classification
   switch (classification.category) {
     case 'positive_ready': {
-      // Send test task immediately
-      await sendTestTaskDirectly(chatId, candidate, supabase);
+      const stage = candidate.pipeline_stage as string | null;
+
+      if (stage === 'outreach_sent') {
+        // Candidate responded positively via text instead of button — treat same as outreach_yes
+        const { data: matchData } = await supabase
+          .from('candidate_request_matches')
+          .select('request_id')
+          .eq('candidate_id', candidate.id)
+          .order('match_score', { ascending: false })
+          .limit(1)
+          .single();
+
+        const match = matchData as { request_id: string } | null;
+        if (match) {
+          await sendTelegramMessage(chatId, 'Чудово! Надсилаємо вам анкету — займе близько 20-30 хвилин.');
+          await supabase
+            .from('candidates')
+            .update({ candidate_response: 'positive' } as never)
+            .eq('id', candidate.id);
+          const { addToAutomationQueue } = await import('@/lib/automation/queue');
+          await addToAutomationQueue({
+            supabase,
+            actionType: 'send_questionnaire',
+            candidateId: candidate.id,
+            requestId: match.request_id,
+          });
+        } else {
+          await sendTelegramMessage(chatId, 'Дякуємо за відповідь! Найближчим часом надішлемо вам деталі.');
+        }
+      } else if (stage === 'questionnaire_sent' || stage === 'questionnaire_done') {
+        // Already in questionnaire flow — just acknowledge
+        await sendTelegramMessage(chatId, 'Дякуємо! Якщо маєте питання — пишіть.');
+      } else {
+        // Later stages (test_sent etc.) — original behavior
+        await sendTestTaskDirectly(chatId, candidate, supabase);
+      }
       break;
     }
 
