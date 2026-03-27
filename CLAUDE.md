@@ -164,6 +164,7 @@ middleware.ts                     # Auth middleware (protects /dashboard/*)
 - Pipeline: pipeline_stage (new|analyzed|outreach_sent|questionnaire_sent|questionnaire_done|test_sent|test_done|interview|rejected|hired|outreach_declined) — **змінюється вручну** через PUT /api/candidates/[id]/pipeline-stage
 - **Vacancy binding (migration 015):** primary_request_id (UUID FK → requests, nullable), applied_request_ids (UUID[]) — vacancies selected at application time
 - **Blacklist (migration 019):** is_blacklisted (BOOLEAN, default false), blacklisted_at (TIMESTAMPTZ), blacklisted_by (UUID FK → managers), blacklist_reason (TEXT) — кандидат виключається з усіх автоматичних дій та вкладки "Рекомендовані"
+- **Bot session (migration 021):** bot_session (JSONB, nullable) — стан анкети в Telegram боті: `{ state, questionnaire_response_id, current_question_index, current_answer_parts }`
 
 **candidate_request_history** — Vacancy change log (migration 015)
 - candidate_id, from_request_id, to_request_id, changed_by (manager FK), reason ('initial_application'|'manager_reassign'|'new_request_scan'|'auto_best_match'), notes, created_at
@@ -319,32 +320,44 @@ middleware.ts                     # Auth middleware (protects /dashboard/*)
 - **Warm:** Applied via web form or Telegram bot
 - **Cold:** Sourced via bookmarklet from LinkedIn, GitHub, DOU, Djinni, Work.ua
 
-### Automated Pipeline Flow (automation_queue)
-The system automates the entire candidate funnel via `automation_queue` jobs processed by cron:
+### Automated Pipeline Flow
+Весь флоу відбувається **одразу** (без черги для outreach/questionnaire/test_task):
 
-1. **AI Analysis** (fire-and-forget from `/api/candidates/apply` → `analyze-background`): candidate gets `pipeline_stage: 'analyzed'`
-2. **Auto-outreach** (score ≥ 7 + request has `outreach_template_approved`): queued immediately after analysis → cron sends via Telegram with inline "Так, цікаво!" / "Ні, дякую" buttons → `pipeline_stage: 'outreach_sent'`
-3. **Candidate responds** (Telegram callback_query): "Yes" → queues `send_questionnaire`; "No" → `pipeline_stage: 'outreach_declined'`
-4. **Questionnaire auto-sent**: uses request's configured competencies/questions → sends link via Telegram → `pipeline_stage: 'questionnaire_sent'`
-5. **Questionnaire completed** (score ≥ 7): queues `send_test_task` → `pipeline_stage: 'test_sent'`
-6. **Test task evaluated**: manager sees results → clicks "Запросити на інтерв'ю" or "Відхилити"
-7. **Final decision**: `send_invite` queued immediately; `send_rejection` queued with 24h delay (more humane)
+1. **AI Analysis** (fire-and-forget з `/api/candidates/apply` → `analyze-background`): кандидат отримує `pipeline_stage: 'analyzed'`
+2. **Підтвердження заявки**: якщо є `telegram_chat_id` — одразу надсилається повідомлення "Дякую, отримали заявку..."
+3. **Auto-outreach** (score ≥ 7 + `outreach_template_approved`): `sendOutreachDirectly()` надсилає повідомлення в Telegram з однією кнопкою "Можемо починати 🚀" → `pipeline_stage: 'outreach_sent'`
+4. **Кандидат натискає "Можемо починати 🚀"** (callback `start_questionnaire:{candidateId}:{requestId}`): анкета починається **прямо в чаті бота** — питання одне за одним, кандидат відповідає текстом, натискає "Наступне" → `pipeline_stage: 'questionnaire_sent'`
+5. **Завершення анкети** (остання кнопка): AI-оцінка запускається одразу; якщо score ≥ 7 → `sendTestTaskToCandidate()` відправляє тестове з Mini App кнопкою "Надіслати результат 📎" → `pipeline_stage: 'test_sent'`
+6. **Здача тестового**: кандидат натискає кнопку → відкривається Mini App `/submit-test`
+7. **Менеджер приймає рішення**: queues `send_invite` або `send_rejection` — **обидва надсилаються одразу** (без затримки)
+
+**Стан анкети в боті** зберігається в `candidates.bot_session` (JSONB):
+```typescript
+interface BotSession {
+  state: 'idle' | 'questionnaire_in_progress';
+  questionnaire_response_id?: string;
+  current_question_index?: number;
+  current_answer_parts?: string[]; // текстові фрагменти між кнопками
+}
+```
 
 **Key files:**
-- `lib/automation/queue.ts` — Queue utilities (addToAutomationQueue, fetchPendingJobs, markJob*)
-- `lib/automation/handlers.ts` — 5 handlers (outreach, questionnaire, test_task, invite, rejection) + executeAutomationJob dispatcher
+- `lib/telegram/direct-actions.ts` — `sendOutreachDirectly()`, `sendTestTaskToCandidate()` — прямі виклики без черги
+- `app/api/telegram/webhook/route.ts` — обробка всіх подій бота + логіка анкети в чаті
+- `lib/automation/queue.ts` — Queue utilities (тільки для send_invite, send_rejection)
+- `lib/automation/handlers.ts` — тільки `handleSendInvite`, `handleSendRejection` активні; решта — deprecated, skipped
 - `lib/ai/prompts.ts` — OUTREACH_PERSONALIZATION_PROMPT
 - `lib/outreach/message-generator.ts` — generatePersonalizedOutreach()
-- `app/api/cron/process-automation/route.ts` — Cron job processing
+- `app/api/cron/process-automation/route.ts` — Cron job (тільки invite/rejection)
 - `app/api/candidates/[id]/final-decision/route.ts` — Manager decision endpoint
 - `components/dashboard/final-decision-panel.tsx` — Invite/reject UI
 - `components/dashboard/pipeline-timeline.tsx` — Visual pipeline progress
 
 **Automation triggers:**
-- `analyze-background` (fire-and-forget) → queues `send_outreach` (if score ≥ 7 + approved template)
-- Telegram outreach callback "Yes" → queues `send_questionnaire`
-- Questionnaire submit → queues `send_test_task` (if questionnaire score ≥ 7)
-- Manager final decision → queues `send_invite` or `send_rejection` (24h delay)
+- `analyze-background` → `sendOutreachDirectly()` (якщо score ≥ 7 + approved template)
+- Telegram callback `start_questionnaire` → запуск анкети в боті
+- Завершення анкети → AI eval → `sendTestTaskToCandidate()` (якщо score ≥ 7)
+- Manager final decision → queues `send_invite` або `send_rejection` (обидва одразу)
 
 **Blacklist guard:** `executeAutomationJob()` перевіряє `is_blacklisted` перед виконанням — якщо true, job завершується без відправки.
 
@@ -385,18 +398,19 @@ The system automates the entire candidate funnel via `automation_queue` jobs pro
 ### Soft Skills Questionnaire Flow
 1. Manager configures competencies + questions in admin panel (`/dashboard/settings/questionnaire`)
 2. When creating a request, manager selects competencies in two modes: "all random" (system picks 3-4 at send time) or "specific questions" (exact question IDs). Custom questions added in the form are saved to the question bank.
-3. On candidate page, manager clicks "Надіслати анкету" → system generates UUID token link
-4. Candidate opens link → welcome screen → fills out questions (min 50 chars each) → submits
+3. **Automated (primary):** After candidate натискає "Можемо починати 🚀" — анкета проходить **прямо в Telegram боті** (питання одне за одним, відповіді — текстом). Стан зберігається в `candidates.bot_session`.
+4. **Manual fallback:** On candidate page, manager clicks "Надіслати анкету" → system generates UUID token link → candidate fills web form
 5. AI evaluates answers (score 1-10, per-competency breakdown, strengths, concerns)
 6. Manager sees results on candidate detail page (QuestionnaireSection)
 
-**Questionnaire statuses:** `null` (not sent) → `sent` → `in_progress` → `completed` / `expired`
+**Questionnaire statuses:** `null` (not sent) → `sent` / `in_progress` → `completed` / `expired`
 
 **Key files:**
 - `lib/ai/evaluateQuestionnaire.ts` — AI evaluation with inline prompt (not in prompts.ts)
+- `app/api/telegram/webhook/route.ts` — bot questionnaire logic (startQuestionnaire, handleQuestionnaireNext, finalizeQuestionnaire)
 - `components/dashboard/questionnaire/questionnaire-section.tsx` — Candidate detail integration
 - `components/settings/questionnaire-settings.tsx` — Admin panel
-- `app/questionnaire/[token]/questionnaire-form.tsx` — Public form
+- `app/questionnaire/[token]/questionnaire-form.tsx` — Public form (fallback)
 
 ### Test Task Flow
 1. Manager schedules test task for candidate
@@ -410,19 +424,23 @@ The system automates the entire candidate funnel via `automation_queue` jobs pro
 
 **Test task statuses:** `not_sent` → `scheduled` → `sent` → `submitted_on_time`/`submitted_late` → `evaluating` → `evaluated` → `approved`/`rejected`
 
-**Immediate sending:** When a candidate replies positively in Telegram (classified as `positive`), the webhook handler sends the test task immediately via `sendTestTaskDirectly()` instead of going through the cron queue. Duplicate prevention: checks `test_task_status` before sending.
+**Automated sending:** After questionnaire AI score ≥ 7, `sendTestTaskToCandidate()` sends the test task immediately with a Mini App button "Надіслати результат 📎" that opens `/submit-test`. Duplicate prevention: checks `test_task_status` before sending.
 
 ### Telegram Bot & Mini App
-- `/start` — Sends welcome message with inline button that opens Mini App at `/apply`
+- `/start` — saves `telegram_chat_id` for existing candidate (by username), надсилає привітання з кнопкою Mini App `/apply`
 - **Production:** webhook mode (`POST /api/telegram/webhook`). Set webhook via: `curl "https://api.telegram.org/bot<TOKEN>/setWebhook?url=<APP_URL>/api/telegram/webhook"`
 - **Local dev:** polling mode (`npm run bot`). **Important:** polling and webhook are mutually exclusive — kill the polling process before using webhook, as Telegram automatically removes the webhook when polling is active
 - Webhook handler uses `createServiceRoleClient()` to bypass RLS
-- Stores `telegram_chat_id` on first message from candidate (required for outbound messaging)
-- Incoming messages classified as: positive, negative, question, test_submission, deadline_request
-- On `positive` response: sends test task immediately (bypasses cron queue)
-- **Outreach callback_query handling:** `outreach_yes:{matchId}` → removes inline buttons, queues questionnaire; `outreach_no:{matchId}` → removes buttons, updates pipeline_stage to outreach_declined
-- **Question handling** (`positive_with_questions`, `questions_about_job`): AI generates answer using `answerCandidateQuestion()` — три шари контексту за пріоритетом: 1) `vacancy_info` (специфіка вакансії: онбординг, команда, процес), 2) деталі вакансії (title, salary_range, location, employment_type, remote_policy), 3) `company_info` зі `settings`. Фетч вакансії через `candidate_request_matches` → `requests` (поля включають `vacancy_info`)
+- Stores `telegram_chat_id` on first contact (required for outbound messaging)
+- **Webhook routing logic:**
+  - `start_questionnaire:{candidateId}:{requestId}` callback → `startQuestionnaire()` — запуск анкети в боті
+  - `questionnaire_next` callback → `handleQuestionnaireNext()` — збереження відповіді + наступне питання
+  - Text while `bot_session.state === 'questionnaire_in_progress'` → акумулюється в `current_answer_parts` (не класифікується)
+  - `questions_about_job` / `positive_with_questions` → `answerCandidateQuestion()` з контекстом вакансії
+  - Legacy: `outreach_yes`/`outreach_no` callback → тепер запускає анкету або відмовляє (для старих повідомлень в льоту)
+- **Question handling** (`positive_with_questions`, `questions_about_job`): AI generates answer using `answerCandidateQuestion()` — три шари контексту: 1) `vacancy_info`, 2) деталі вакансії, 3) `company_info` зі `settings`
 - Logs all conversations to candidate_conversations table
+- **Bot session** (`candidates.bot_session` JSONB): зберігає стан анкети між повідомленнями — `state`, `questionnaire_response_id`, `current_question_index`, `current_answer_parts`
 
 ### Telegram Mini App Integration
 - Telegram Web App SDK loaded globally in `app/layout.tsx` (`telegram-web-app.js`)

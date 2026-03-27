@@ -52,26 +52,13 @@ export async function POST(
       } as never)
       .eq('id', candidateId);
 
-    // Queue automated message
-    if (decision === 'invite') {
-      // Send invite immediately
-      await addToAutomationQueue({
-        supabase,
-        actionType: 'send_invite',
-        candidateId,
-        requestId: request_id,
-      });
-    } else {
-      // Send rejection after 24 hours
-      const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
-      await addToAutomationQueue({
-        supabase,
-        actionType: 'send_rejection',
-        candidateId,
-        requestId: request_id,
-        scheduledFor: tomorrow,
-      });
-    }
+    // Queue automated message — both invite and rejection sent immediately
+    await addToAutomationQueue({
+      supabase,
+      actionType: decision === 'invite' ? 'send_invite' : 'send_rejection',
+      candidateId,
+      requestId: request_id,
+    });
 
     return NextResponse.json({
       success: true,

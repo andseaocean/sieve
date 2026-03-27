@@ -453,12 +453,13 @@ export async function executeAutomationJob(supabase: SupabaseClient, job: Automa
   }
 
   switch (job.action_type) {
+    // send_outreach, send_questionnaire, send_test_task are handled directly
+    // (not via cron queue) — skip gracefully if old jobs are still pending
     case 'send_outreach':
-      return handleSendOutreach(supabase, job);
     case 'send_questionnaire':
-      return handleSendQuestionnaire(supabase, job);
     case 'send_test_task':
-      return handleSendTestTask(supabase, job);
+      console.log(`Automation: Skipping deprecated action ${job.action_type} for candidate ${job.candidate_id} — now handled directly`);
+      return { success: true, skipped: true };
     case 'send_invite':
       return handleSendInvite(supabase, job);
     case 'send_rejection':

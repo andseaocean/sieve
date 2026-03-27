@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, Suspense } from 'react';
+import { useState, Suspense, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -15,6 +15,14 @@ function SubmitTestForm() {
   const [submitted, setSubmitted] = useState(false);
   const [submissionText, setSubmissionText] = useState('');
   const [feedback, setFeedback] = useState('');
+
+  useEffect(() => {
+    const tg = window.Telegram?.WebApp;
+    if (tg?.initData) {
+      tg.ready();
+      tg.expand();
+    }
+  }, []);
 
   const handleSubmit = async () => {
     if (!submissionText.trim()) {
@@ -43,6 +51,12 @@ function SubmitTestForm() {
       if (!response.ok) throw new Error('Submission failed');
 
       setSubmitted(true);
+
+      // Close Telegram Mini App after short delay
+      const tg = window.Telegram?.WebApp;
+      if (tg?.initData) {
+        setTimeout(() => tg.close(), 2000);
+      }
     } catch (error) {
       console.error('Submission error:', error);
       alert('Помилка при відправці. Спробуйте ще раз.');

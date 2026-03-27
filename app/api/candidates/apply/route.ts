@@ -189,6 +189,25 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Send Telegram confirmation if candidate applied via Mini App
+    if (telegram_chat_id) {
+      try {
+        await fetch(
+          `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: telegram_chat_id,
+              text: 'Дякую, ми вже отримали твою заявку і оцінюємо її. Якщо у нас match — зовсім скоро повернемося!',
+            }),
+          }
+        );
+      } catch (tgErr) {
+        console.error('Failed to send Telegram confirmation:', tgErr);
+      }
+    }
+
     // Trigger background AI analysis after response is sent
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000';
     const internalSecret = process.env.INTERNAL_API_SECRET || 'default-secret';

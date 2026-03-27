@@ -297,65 +297,54 @@ export async function POST(
       }, 0);
     }
 
-    // Trigger outreach automation for strong candidates (score >= 7)
-    if (analysis.score >= 7 && primaryRequestId) {
+    // Trigger direct outreach for strong candidates (score >= 7)
+    if (analysis.score >= 7) {
       try {
-        const { addToAutomationQueue } = await import('@/lib/automation/queue');
+        const { sendOutreachDirectly } = await import('@/lib/telegram/direct-actions');
 
-        const { data: reqData } = await supabase
-          .from('requests')
-          .select('id, outreach_template_approved')
-          .eq('id', primaryRequestId)
-          .eq('outreach_template_approved', true)
-          .single();
+        // Determine request to send outreach for
+        let outreachRequestId: string | null = primaryRequestId;
 
-        if (reqData) {
-          await addToAutomationQueue({
-            supabase,
-            actionType: 'send_outreach',
-            candidateId,
-            requestId: primaryRequestId,
-          });
-          console.log(`Background AI: Queued outreach for candidate ${candidateId}, request ${primaryRequestId}`);
-        }
-      } catch (outreachError) {
-        console.error('Background AI: Failed to queue outreach:', outreachError);
-      }
-    } else if (analysis.score >= 7 && !primaryRequestId && allRequests.length > 0) {
-      // Fallback: find best match from all requests for outreach
-      try {
-        const { addToAutomationQueue } = await import('@/lib/automation/queue');
+        if (!outreachRequestId) {
+          // Fallback: pick best matching request with approved template
+          const { data: bestMatchData } = await supabase
+            .from('candidate_request_matches')
+            .select('request_id, match_score')
+            .eq('candidate_id', candidateId)
+            .order('match_score', { ascending: false })
+            .limit(10);
 
-        const { data: bestMatchData } = await supabase
-          .from('candidate_request_matches')
-          .select('request_id, match_score')
-          .eq('candidate_id', candidateId)
-          .order('match_score', { ascending: false })
-          .limit(10);
-
-        if (bestMatchData && bestMatchData.length > 0) {
-          for (const match of bestMatchData as { request_id: string; match_score: number }[]) {
-            const { data: reqData } = await supabase
+          for (const match of (bestMatchData || []) as { request_id: string; match_score: number }[]) {
+            const { data: reqCheck } = await supabase
               .from('requests')
-              .select('id, outreach_template_approved')
+              .select('id')
               .eq('id', match.request_id)
               .eq('outreach_template_approved', true)
               .single();
-
-            if (reqData) {
-              await addToAutomationQueue({
-                supabase,
-                actionType: 'send_outreach',
-                candidateId,
-                requestId: match.request_id,
-              });
-              console.log(`Background AI: Queued outreach (fallback) for candidate ${candidateId}, request ${match.request_id}`);
+            if (reqCheck) {
+              outreachRequestId = match.request_id;
               break;
             }
           }
+        } else {
+          // Verify primary request has approved template
+          const { data: reqCheck } = await supabase
+            .from('requests')
+            .select('id')
+            .eq('id', primaryRequestId)
+            .eq('outreach_template_approved', true)
+            .single();
+          if (!reqCheck) outreachRequestId = null;
+        }
+
+        if (outreachRequestId) {
+          await sendOutreachDirectly(supabase, candidateId, outreachRequestId);
+          console.log(`Background AI: Direct outreach sent to candidate ${candidateId}, request ${outreachRequestId}`);
+        } else {
+          console.log(`Background AI: No approved outreach template found for candidate ${candidateId}`);
         }
       } catch (outreachError) {
-        console.error('Background AI: Failed to queue outreach (fallback):', outreachError);
+        console.error('Background AI: Failed to send outreach:', outreachError);
       }
     }
 
