@@ -29,6 +29,7 @@ export default function ApplyPage() {
     key_skills: '',
     linkedin_url: '',
     telegram_username: '',
+    telegram_chat_id: '',
     preferred_contact_methods: ['email'] as ('email' | 'telegram')[],
   });
 
@@ -40,10 +41,11 @@ export default function ApplyPage() {
     if (inTelegram) {
       tg.ready();
       tg.expand();
-      const username = tg.initDataUnsafe?.user?.username || '';
+      const user = tg.initDataUnsafe?.user;
       setForm((prev) => ({
         ...prev,
-        telegram_username: username,
+        telegram_username: user?.username || '',
+        telegram_chat_id: user?.id ? String(user.id) : '',
         preferred_contact_methods: ['telegram'],
       }));
     }
@@ -105,6 +107,7 @@ export default function ApplyPage() {
       fd.append('linkedin_url', form.linkedin_url.trim());
       fd.append('portfolio_url', '');
       fd.append('telegram_username', form.telegram_username.trim());
+      fd.append('telegram_chat_id', form.telegram_chat_id.trim());
       fd.append('preferred_contact_methods', JSON.stringify(form.preferred_contact_methods));
       fd.append('applied_request_ids', JSON.stringify(selectedVacancies));
       fd.append('original_language', 'uk');

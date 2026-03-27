@@ -21,6 +21,8 @@ export async function POST(request: NextRequest) {
     // Contact preferences
     const preferred_contact_methods_raw = formData.get('preferred_contact_methods') as string | null;
     const telegram_username = formData.get('telegram_username') as string | null;
+    const telegram_chat_id_raw = formData.get('telegram_chat_id') as string | null;
+    const telegram_chat_id = telegram_chat_id_raw ? parseInt(telegram_chat_id_raw, 10) || null : null;
 
     // Vacancy selection
     const applied_request_ids_raw = formData.get('applied_request_ids') as string | null;
@@ -145,6 +147,7 @@ export async function POST(request: NextRequest) {
         original_language,
         preferred_contact_methods,
         telegram_username: telegram_username || null,
+        telegram_chat_id: telegram_chat_id || null,
         outreach_status: 'pending',
         applied_request_ids,
         primary_request_id: null, // will be set after AI analysis
