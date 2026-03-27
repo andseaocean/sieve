@@ -16,7 +16,6 @@ Red Flags to Watch For: ${request.red_flags || 'None specified'}
 CANDIDATE DATA:
 Name: ${candidate.first_name} ${candidate.last_name}
 About: ${candidate.about_text || 'Not provided'}
-Why Vamos: ${candidate.why_vamos || 'Not provided'}
 Skills: ${candidate.key_skills?.join(', ') || 'Not provided'}
 LinkedIn: ${candidate.linkedin_url || 'Not provided'}
 Portfolio: ${candidate.portfolio_url || 'Not provided'}
@@ -42,10 +41,9 @@ EVALUATION CRITERIA:
 
 IMPORTANT:
 - Be objective and fair
-- Consider both hard skills and soft skills
+- Focus exclusively on described experience (projects, roles, technologies, results) and skill fit with the request requirements
 - Pay attention to red flags
-- Evaluate AI orientation based on the request priority
-- Look for genuine motivation in "Why Vamos"
+- Do NOT factor in motivation, cultural fit, or AI tool usage — evaluate only skills and experience
 - ALL text values in the response MUST be in Ukrainian (УКРАЇНСЬКОЮ мовою)
 
 Return your analysis as a JSON object with this structure:
@@ -89,10 +87,9 @@ AI Orientation: ${request.ai_orientation || 'Not specified'}
 Priority: ${request.priority}
 
 Calculate a match score (0-100) based on:
-- How well required skills align (40%)
-- How well nice-to-have skills align (20%)
-- Soft skills fit (20%)
-- AI orientation alignment (10%)
+- How well required skills align (50%)
+- How well nice-to-have skills align (25%)
+- Soft skills fit (15%)
 - Overall quality of candidate (10%)
 
 ALL text values in the response MUST be in Ukrainian (УКРАЇНСЬКОЮ мовою).
@@ -168,8 +165,6 @@ ${template}
 Ім'я: ${candidate.first_name}
 Про себе: ${candidate.about_text || 'Не вказано'}
 Навички: ${candidate.key_skills?.join(', ') || 'Не вказано'}
-Чому Vamos: ${candidate.why_vamos || 'Не вказано'}
-AI оцінка: ${candidate.ai_score || 'N/A'}/10
 
 === ВАКАНСІЯ ===
 Назва: ${request.title}
@@ -177,16 +172,18 @@ AI оцінка: ${candidate.ai_score || 'N/A'}/10
 
 === ПРАВИЛА ===
 1. Використовуй тон і структуру шаблону як основу
-2. Персоналізуй під конкретного кандидата — згадай 1-2 конкретні речі з профілю
-3. Згадай назву вакансії природно
-4. Закінчуй нейтрально, БЕЗ call-to-action (кнопки будуть додані окремо)
-5. НЕ підписуй повідомлення
-6. Звертайся на "ти"
+2. Одне речення про конкретний досвід кандидата — без переліків і розлогих компліментів
+3. Запропонуй відповісти на кілька запитань у письмовому форматі — це для знайомства; зазнач, що на пізніших етапах передбачене пряме спілкування з командою
+4. Загальна довжина: 3-4 речення максимум
+5. Закінчуй нейтрально, БЕЗ call-to-action (кнопки будуть додані окремо)
+6. НЕ підписуй повідомлення
+7. Звертайся на "ти"
 
 === ЗАБОРОНЕНО ===
-- Більше 120 слів
+- Більше 4 речень
 - Емодзі
 - Кліше типу "Ваша кандидатура нас зацікавила"
+- Згадка тестового завдання
 - Call-to-action в кінці (ніяких "Чи зацікавлені?", "Дай знати" тощо)
 - Обіцяти конкретні умови або зарплату
 
@@ -203,7 +200,6 @@ Analyze this candidate profile and provide a general assessment of their potenti
 CANDIDATE DATA:
 Name: ${candidate.first_name} ${candidate.last_name}
 About: ${candidate.about_text || 'Not provided'}
-Why Vamos: ${candidate.why_vamos || 'Not provided'}
 Skills: ${candidate.key_skills?.join(', ') || 'Not provided'}
 LinkedIn: ${candidate.linkedin_url || 'Not provided'}
 Portfolio: ${candidate.portfolio_url || 'Not provided'}
@@ -233,9 +229,8 @@ EVALUATION CRITERIA:
 
 IMPORTANT:
 - Be objective and fair
-- Consider both technical and soft skills
-- Evaluate AI literacy and orientation to modern tools
-- Look for genuine motivation and cultural fit potential
+- Focus exclusively on described experience (projects, roles, technologies, results) and demonstrated skills
+- Do NOT factor in motivation, cultural fit, or AI tool usage — evaluate only skills and experience
 - ALL text values in the response MUST be in Ukrainian (УКРАЇНСЬКОЮ мовою)${hasPDF || resumeFormatted ? `
 - Use ALL available resume data (work experience, skills, education, achievements) to enrich your assessment
 - Relevant work experience from resume should positively influence the score
