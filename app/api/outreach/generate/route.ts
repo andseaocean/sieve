@@ -59,13 +59,13 @@ export async function POST(request: NextRequest) {
     // Determine contact method
     const contactMethod = determineDeliveryMethod(
       candidate.preferred_contact_methods,
-      candidate.telegram_username
+      candidate.telegram_chat_id
     );
 
     // Check if contact is possible
     if (!contactMethod) {
       return NextResponse.json({
-        error: 'No Telegram username available for this candidate',
+        error: 'Кандидат ще не написав боту — telegram_chat_id відсутній',
       }, { status: 400 });
     }
 

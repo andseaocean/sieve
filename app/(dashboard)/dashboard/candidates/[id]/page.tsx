@@ -593,7 +593,7 @@ export default function CandidateDetailsPage() {
               candidateId={candidateId}
               candidateName={`${candidate.first_name} ${candidate.last_name}`}
               aiScore={candidate.ai_score}
-              email={candidate.email}
+              telegramChatId={candidate.telegram_chat_id}
               telegramUsername={candidate.telegram_username}
               preferredContactMethods={candidate.preferred_contact_methods}
             />

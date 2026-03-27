@@ -131,13 +131,13 @@ export function formatScheduledTimeRelative(date: Date): string {
 
 /**
  * Determine which delivery method to use based on preferences.
- * Only Telegram is supported. Returns null if no Telegram username available.
+ * Only Telegram is supported. Returns null if no telegram_chat_id available.
  */
 export function determineDeliveryMethod(
   preferredMethods: ContactMethod[] | string | null,
-  telegramUsername: string | null
+  telegramChatId: number | string | null
 ): ContactMethod | null {
-  if (telegramUsername && telegramUsername.trim().length > 0) {
+  if (telegramChatId) {
     return 'telegram';
   }
   return null;

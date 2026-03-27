@@ -32,6 +32,7 @@ interface OutreachPreviewProps {
   candidateId: string;
   candidateName?: string;
   aiScore?: number | null;
+  telegramChatId?: number | string | null;
   telegramUsername?: string | null;
   preferredContactMethods?: string[] | null;
 }
@@ -79,6 +80,7 @@ export function OutreachPreview({
   candidateId,
   candidateName,
   aiScore,
+  telegramChatId,
   telegramUsername,
   preferredContactMethods,
 }: OutreachPreviewProps) {
@@ -129,7 +131,7 @@ export function OutreachPreview({
   // Determine contact method availability
   const getContactMethod = (): 'telegram' | null => {
     if (detectedContactMethod === 'telegram') return 'telegram';
-    if (telegramUsername) return 'telegram';
+    if (telegramChatId) return 'telegram';
     return null;
   };
 
