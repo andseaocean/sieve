@@ -397,8 +397,8 @@ export function TestTaskTimeline({ candidate, questionnaireCompleted }: TestTask
     && new Date(candidate.test_task_current_deadline) < new Date()
     && !candidate.test_task_submitted_at;
 
-  const canDecide = candidate.test_task_ai_score != null
-    && !['approved', 'rejected', 'not_sent', 'scheduled', 'sent'].includes(status);
+  // Show decision panel once submission received — regardless of AI score (manual review works too)
+  const canDecide = ['submitted_on_time', 'submitted_late', 'evaluating', 'evaluated'].includes(status);
 
   return (
     <Card>

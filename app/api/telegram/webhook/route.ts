@@ -51,7 +51,7 @@ interface TelegramUpdate {
 }
 
 interface BotSession {
-  state: 'idle' | 'questionnaire_in_progress';
+  state: 'idle' | 'questionnaire_in_progress' | 'waiting_invite_decline_reason';
   questionnaire_response_id?: string;
   current_question_index?: number;
   current_answer_parts?: string[];
@@ -539,8 +539,30 @@ async function handleMessage(message: TelegramMessage): Promise<void> {
     content: text,
   } as never);
 
-  // If questionnaire is in progress — accumulate answer parts
   const botSession = candidate.bot_session;
+
+  // If waiting for invite decline reason — save text and close flow
+  if (botSession?.state === 'waiting_invite_decline_reason') {
+    await supabase.from('candidate_conversations').insert({
+      candidate_id: candidate.id,
+      direction: 'inbound',
+      message_type: 'candidate_response',
+      content: `Причина відмови від запрошення: ${text}`,
+      metadata: { decline_reason: text },
+    } as never);
+
+    await supabase
+      .from('candidates')
+      .update({ bot_session: null } as never)
+      .eq('id', candidate.id);
+
+    await sendTelegramMessage(chatId,
+      'Дякуємо за відповідь — це дуже важливо для нас. Бажаємо успіхів!'
+    );
+    return;
+  }
+
+  // If questionnaire is in progress — accumulate answer parts
   if (botSession?.state === 'questionnaire_in_progress') {
     const parts = [...(botSession.current_answer_parts || []), text];
     await supabase
@@ -840,6 +862,115 @@ async function handleCallbackQuery(
       direction: 'inbound',
       message_type: 'candidate_response',
       content: 'Скасував відмову від тестового — повернуто кнопки',
+      metadata: { callback_data: data },
+    } as never);
+    return;
+  }
+
+  // ── invite_accept:{candidateId} — candidate accepts interview invite ──
+  if (data.startsWith('invite_accept:')) {
+    const candidateId = data.split(':')[1];
+    await answerCallbackQuery(callbackQuery.id);
+    if (messageId && chatId) await editTelegramReplyMarkup(chatId, messageId);
+
+    await sendTelegramMessage(chatId,
+      'Дякуємо! Найближчим часом з тобою зв\'яжеться наш менеджер, щоб домовитися про зустріч.'
+    );
+
+    await supabase
+      .from('candidates')
+      .update({ pipeline_stage: 'interview' } as never)
+      .eq('id', candidateId);
+
+    await supabase.from('candidate_conversations').insert({
+      candidate_id: candidateId,
+      direction: 'inbound',
+      message_type: 'candidate_response',
+      content: 'Прийняв запрошення на співбесіду',
+      metadata: { callback_data: data },
+    } as never);
+    return;
+  }
+
+  // ── invite_decline:{candidateId} — candidate wants to decline interview ──
+  if (data.startsWith('invite_decline:') && !data.startsWith('invite_decline_confirm:') && !data.startsWith('invite_decline_cancel:')) {
+    const candidateId = data.split(':')[1];
+    await answerCallbackQuery(callbackQuery.id);
+    if (messageId && chatId) await editTelegramReplyMarkup(chatId, messageId);
+
+    await sendTelegramMessage(chatId,
+      'Дуже прикро це чути. Підтвердити відмову від запрошення?',
+      {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: 'Підтвердити відмову', callback_data: `invite_decline_confirm:${candidateId}` }],
+            [{ text: 'Скасувати відмову', callback_data: `invite_decline_cancel:${candidateId}` }],
+          ],
+        },
+      }
+    );
+
+    await supabase.from('candidate_conversations').insert({
+      candidate_id: candidateId,
+      direction: 'inbound',
+      message_type: 'candidate_response',
+      content: 'Натиснув "Відхилити запрошення"',
+      metadata: { callback_data: data },
+    } as never);
+    return;
+  }
+
+  // ── invite_decline_confirm:{candidateId} — confirmed declining invite ──
+  if (data.startsWith('invite_decline_confirm:')) {
+    const candidateId = data.split(':')[1];
+    await answerCallbackQuery(callbackQuery.id);
+    if (messageId && chatId) await editTelegramReplyMarkup(chatId, messageId);
+
+    await sendTelegramMessage(chatId,
+      'Зрозуміло. Якщо не складно — напиши коротко, чому відмовляєшся? Це допоможе нам стати кращими.'
+    );
+
+    await supabase
+      .from('candidates')
+      .update({
+        pipeline_stage: 'rejected',
+        bot_session: { state: 'waiting_invite_decline_reason' } as never,
+      } as never)
+      .eq('id', candidateId);
+
+    await supabase.from('candidate_conversations').insert({
+      candidate_id: candidateId,
+      direction: 'inbound',
+      message_type: 'candidate_response',
+      content: 'Підтвердив відмову від запрошення на співбесіду',
+      metadata: { callback_data: data },
+    } as never);
+    return;
+  }
+
+  // ── invite_decline_cancel:{candidateId} — cancelled declining, resend invite buttons ──
+  if (data.startsWith('invite_decline_cancel:')) {
+    const candidateId = data.split(':')[1];
+    await answerCallbackQuery(callbackQuery.id);
+    if (messageId && chatId) await editTelegramReplyMarkup(chatId, messageId);
+
+    await sendTelegramMessage(chatId,
+      'Добре, ми раді! Кнопки повернулися — обирай, коли будеш готовий.',
+      {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: 'Прийняти запрошення ✅', callback_data: `invite_accept:${candidateId}` }],
+            [{ text: 'Відхилити запрошення', callback_data: `invite_decline:${candidateId}` }],
+          ],
+        },
+      }
+    );
+
+    await supabase.from('candidate_conversations').insert({
+      candidate_id: candidateId,
+      direction: 'inbound',
+      message_type: 'candidate_response',
+      content: 'Скасував відмову від запрошення — повернуто кнопки',
       metadata: { callback_data: data },
     } as never);
     return;

@@ -6,7 +6,11 @@ import { Candidate } from '@/lib/supabase/types';
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
-async function sendTelegramMessage(chatId: number, text: string): Promise<boolean> {
+async function sendTelegramMessage(
+  chatId: number,
+  text: string,
+  options?: Record<string, unknown>
+): Promise<{ ok: boolean; description?: string }> {
   const response = await fetch(
     `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
     {
@@ -15,11 +19,12 @@ async function sendTelegramMessage(chatId: number, text: string): Promise<boolea
       body: JSON.stringify({
         chat_id: chatId,
         text,
-        parse_mode: 'Markdown',
+        // No parse_mode — messages may contain special chars
+        ...options,
       }),
     }
   );
-  return response.ok;
+  return response.json();
 }
 
 export async function POST(request: NextRequest) {
@@ -54,9 +59,23 @@ export async function POST(request: NextRequest) {
     let telegramSent = false;
 
     if (chatId) {
-      telegramSent = await sendTelegramMessage(chatId, message);
+      // For approved: add invite accept/decline buttons
+      // callback_data byte limits: invite_accept: (14) + 36 = 50 ✓  invite_decline: (15) + 36 = 51 ✓
+      const telegramOptions = decision === 'approved'
+        ? {
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: 'Прийняти запрошення ✅', callback_data: `invite_accept:${candidateId}` }],
+                [{ text: 'Відхилити запрошення', callback_data: `invite_decline:${candidateId}` }],
+              ],
+            },
+          }
+        : {};
+
+      const result = await sendTelegramMessage(chatId, message, telegramOptions);
+      telegramSent = result.ok;
       if (!telegramSent) {
-        console.error(`Failed to send Telegram message to chat_id ${chatId}`);
+        console.error(`Failed to send Telegram message to chat_id ${chatId}:`, result.description);
       }
     } else {
       console.warn(`No telegram_chat_id for candidate ${candidateId}`);
