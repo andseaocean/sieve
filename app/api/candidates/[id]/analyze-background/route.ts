@@ -297,56 +297,8 @@ export async function POST(
       }, 0);
     }
 
-    // Trigger direct outreach for strong candidates (score >= 7)
-    if (analysis.score >= 7) {
-      try {
-        const { sendOutreachDirectly } = await import('@/lib/telegram/direct-actions');
-
-        // Determine request to send outreach for
-        let outreachRequestId: string | null = primaryRequestId;
-
-        if (!outreachRequestId) {
-          // Fallback: pick best matching request with approved template
-          const { data: bestMatchData } = await supabase
-            .from('candidate_request_matches')
-            .select('request_id, match_score')
-            .eq('candidate_id', candidateId)
-            .order('match_score', { ascending: false })
-            .limit(10);
-
-          for (const match of (bestMatchData || []) as { request_id: string; match_score: number }[]) {
-            const { data: reqCheck } = await supabase
-              .from('requests')
-              .select('id')
-              .eq('id', match.request_id)
-              .eq('outreach_template_approved', true)
-              .single();
-            if (reqCheck) {
-              outreachRequestId = match.request_id;
-              break;
-            }
-          }
-        } else if (primaryRequestId) {
-          // Verify primary request has approved template
-          const { data: reqCheck } = await supabase
-            .from('requests')
-            .select('id')
-            .eq('id', primaryRequestId as string)
-            .eq('outreach_template_approved', true)
-            .single();
-          if (!reqCheck) outreachRequestId = null;
-        }
-
-        if (outreachRequestId) {
-          await sendOutreachDirectly(supabase, candidateId, outreachRequestId);
-          console.log(`Background AI: Direct outreach sent to candidate ${candidateId}, request ${outreachRequestId}`);
-        } else {
-          console.log(`Background AI: No approved outreach template found for candidate ${candidateId}`);
-        }
-      } catch (outreachError) {
-        console.error('Background AI: Failed to send outreach:', outreachError);
-      }
-    }
+    // NOTE: Auto-outreach disabled — manager sends outreach manually.
+    // To re-enable, restore the sendOutreachDirectly block here (score >= 7 check).
 
     console.log('Background AI: All processing complete for candidate', candidateId);
 
