@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Clock, CheckCircle, AlertTriangle, FileText, Send, Star, ChevronDown, ChevronUp, ThumbsUp, ThumbsDown, Loader2, X } from 'lucide-react';
+import { Clock, CheckCircle, AlertTriangle, FileText, Send, Star, ChevronDown, ChevronUp, ThumbsUp, ThumbsDown, Loader2, X, Sparkles, Pencil } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,7 @@ interface TestTaskTimelineProps {
     test_task_candidate_feedback?: string | null;
     test_task_submission_text?: string | null;
   };
+  questionnaireCompleted?: boolean;
 }
 
 const statusLabels: Record<string, string> = {
@@ -248,11 +249,148 @@ function DecisionPanel({ candidateId, onDecided }: { candidateId: string; onDeci
   );
 }
 
-export function TestTaskTimeline({ candidate }: TestTaskTimelineProps) {
+function SendTestTaskPanel({ candidateId, onSent }: { candidateId: string; onSent: () => void }) {
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [requestId, setRequestId] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedMessage, setEditedMessage] = useState('');
+  const [isSending, setIsSending] = useState(false);
+
+  const handleGenerate = async () => {
+    setIsGenerating(true);
+    setMessage(null);
+    try {
+      const res = await fetch('/api/test-task/generate-invite-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ candidateId }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to generate');
+      }
+      const data = await res.json();
+      setMessage(data.message);
+      setRequestId(data.requestId);
+      setEditedMessage(data.message);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Помилка генерації повідомлення');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleSend = async () => {
+    const textToSend = isEditing ? editedMessage : message;
+    if (!textToSend || !requestId) return;
+
+    setIsSending(true);
+    try {
+      const res = await fetch('/api/test-task/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ candidateId, message: textToSend, requestId }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to send');
+      }
+      toast.success('Тестове завдання надіслано!');
+      onSent();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Помилка надсилання');
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <CardTitle className="flex items-center gap-2">
+          <FileText className="h-5 w-5 text-primary" />
+          Тестове завдання
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {!message && !isGenerating && (
+          <div className="text-center py-4">
+            <p className="text-sm text-muted-foreground mb-4">
+              Анкету заповнено. Ви можете надіслати кандидату тестове завдання.
+            </p>
+            <Button onClick={handleGenerate}>
+              <Sparkles className="w-4 h-4 mr-2" />
+              Згенерувати повідомлення
+            </Button>
+          </div>
+        )}
+
+        {isGenerating && (
+          <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            Генерую повідомлення...
+          </div>
+        )}
+
+        {message && !isGenerating && (
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Повідомлення:</label>
+              {isEditing ? (
+                <Textarea
+                  value={editedMessage}
+                  onChange={(e) => setEditedMessage(e.target.value)}
+                  rows={6}
+                  className="text-sm resize-none"
+                />
+              ) : (
+                <div className="bg-gray-50 rounded-lg p-3 text-sm whitespace-pre-wrap">
+                  {message}
+                </div>
+              )}
+            </div>
+
+            <div className="text-xs text-muted-foreground bg-blue-50 border border-blue-200 rounded p-2">
+              Кандидат отримає дві кнопки: <strong>"Надіслати результати 📎"</strong> (відкриє форму здачі) та <strong>"Відмовитися від виконання"</strong>.
+            </div>
+
+            <div className="flex items-center justify-between pt-1 border-t">
+              <div className="flex gap-2">
+                {!isEditing ? (
+                  <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
+                    <Pencil className="w-3 h-3 mr-1" />
+                    Редагувати
+                  </Button>
+                ) : (
+                  <Button variant="outline" size="sm" onClick={() => { setIsEditing(false); setMessage(editedMessage); }}>
+                    <CheckCircle className="w-3 h-3 mr-1" />
+                    Зберегти
+                  </Button>
+                )}
+                <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={handleGenerate} disabled={isGenerating}>
+                  <Sparkles className="w-3 h-3 mr-1" />
+                  Згенерувати ще раз
+                </Button>
+              </div>
+              <Button size="sm" onClick={handleSend} disabled={isSending}>
+                {isSending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Send className="w-4 h-4 mr-1" />}
+                Надіслати
+              </Button>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+export function TestTaskTimeline({ candidate, questionnaireCompleted }: TestTaskTimelineProps) {
   const [status, setStatus] = useState(candidate.test_task_status || 'not_sent');
 
   if (status === 'not_sent') {
-    return null;
+    if (!questionnaireCompleted) return null;
+    return <SendTestTaskPanel candidateId={candidate.id} onSent={() => setStatus('sent')} />;
   }
 
   const isOverdue = candidate.test_task_current_deadline

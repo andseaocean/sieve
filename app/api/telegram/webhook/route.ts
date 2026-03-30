@@ -15,7 +15,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/client';
 import { classifyResponse } from '@/lib/ai/classifyResponse';
 import { answerCandidateQuestion } from '@/lib/telegram/answer-question';
-import { sendTelegramMessage, sendTestTaskToCandidate } from '@/lib/telegram/direct-actions';
+import { sendTelegramMessage } from '@/lib/telegram/direct-actions';
 import { evaluateQuestionnaire } from '@/lib/ai/evaluateQuestionnaire';
 import type { Candidate, Request, QuestionnaireQuestionSnapshot, SoftSkillCompetency, QuestionnaireQuestion } from '@/lib/supabase/types';
 
@@ -465,20 +465,7 @@ async function finalizeQuestionnaire(
 
     console.log(`Questionnaire AI evaluation complete for candidate ${candidateId}: score ${result.score}`);
 
-    // If score >= 7, send test task immediately
-    if (result.score >= 7) {
-      // Get request_id from questionnaire_responses
-      const { data: qrFull } = await supabase
-        .from('questionnaire_responses' as never)
-        .select('request_id')
-        .eq('id', questionnaireResponseId)
-        .single();
-
-      const requestId = (qrFull as { request_id: string } | null)?.request_id;
-      if (requestId) {
-        await sendTestTaskToCandidate(supabase, chatId, candidateId, requestId);
-      }
-    }
+    // NOTE: auto test task sending disabled — manager sends manually from admin panel.
   } catch (evalError) {
     console.error('Failed to evaluate questionnaire:', evalError);
   }
@@ -773,6 +760,88 @@ async function handleCallbackQuery(
       await editTelegramReplyMarkup(chatId, messageId);
     }
     await handleQuestionnaireNext(supabase, chatId, callbackQuery.id);
+    return;
+  }
+
+  // ── test_decline:{candidateId} — candidate wants to decline test task ──
+  if (data.startsWith('test_decline:') && !data.startsWith('test_decline_confirm:') && !data.startsWith('test_decline_cancel:')) {
+    const candidateId = data.split(':')[1];
+    await answerCallbackQuery(callbackQuery.id);
+    if (messageId && chatId) await editTelegramReplyMarkup(chatId, messageId);
+
+    await sendTelegramMessage(chatId,
+      'Дуже прикро чути таке рішення. Точно відмовитися від виконання тестового?',
+      {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: 'Підтвердити відмову', callback_data: `test_decline_confirm:${candidateId}` }],
+            [{ text: 'Скасувати відмову', callback_data: `test_decline_cancel:${candidateId}` }],
+          ],
+        },
+      }
+    );
+
+    await supabase.from('candidate_conversations').insert({
+      candidate_id: candidateId,
+      direction: 'inbound',
+      message_type: 'candidate_response',
+      content: 'Натиснув "Відмовитися від виконання тестового"',
+      metadata: { callback_data: data },
+    } as never);
+    return;
+  }
+
+  // ── test_decline_confirm:{candidateId} — confirmed decline ──
+  if (data.startsWith('test_decline_confirm:')) {
+    const candidateId = data.split(':')[1];
+    await answerCallbackQuery(callbackQuery.id);
+    if (messageId && chatId) await editTelegramReplyMarkup(chatId, messageId);
+
+    await sendTelegramMessage(chatId,
+      'Зрозуміло, дякуємо за щирість. Бажаємо успіхів у пошуках — можливо, зустрінемося знову в майбутньому!'
+    );
+
+    await supabase
+      .from('candidates')
+      .update({ pipeline_stage: 'outreach_declined', outreach_status: 'declined' } as never)
+      .eq('id', candidateId);
+
+    await supabase.from('candidate_conversations').insert({
+      candidate_id: candidateId,
+      direction: 'inbound',
+      message_type: 'candidate_response',
+      content: 'Підтвердив відмову від виконання тестового завдання',
+      metadata: { callback_data: data },
+    } as never);
+    return;
+  }
+
+  // ── test_decline_cancel:{candidateId} — cancelled decline, resend buttons ──
+  if (data.startsWith('test_decline_cancel:')) {
+    const candidateId = data.split(':')[1];
+    await answerCallbackQuery(callbackQuery.id);
+    if (messageId && chatId) await editTelegramReplyMarkup(chatId, messageId);
+
+    const APP_URL_LOCAL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    await sendTelegramMessage(chatId,
+      'Добре, повертаємося! Коли будеш готовий — надсилай результати.',
+      {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: 'Надіслати результати 📎', web_app: { url: `${APP_URL_LOCAL}/submit-test?id=${candidateId}` } }],
+            [{ text: 'Відмовитися від виконання', callback_data: `test_decline:${candidateId}` }],
+          ],
+        },
+      }
+    );
+
+    await supabase.from('candidate_conversations').insert({
+      candidate_id: candidateId,
+      direction: 'inbound',
+      message_type: 'candidate_response',
+      content: 'Скасував відмову від тестового — повернуто кнопки',
+      metadata: { callback_data: data },
+    } as never);
     return;
   }
 

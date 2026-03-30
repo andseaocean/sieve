@@ -259,6 +259,49 @@ ${request.location ? `Локація: ${request.location}` : ''}
 `.trim();
 }
 
+/**
+ * Prompt for sending test task after questionnaire is completed.
+ * Manager manually triggers this after reviewing questionnaire results.
+ */
+export function TEST_TASK_INVITE_PROMPT(
+  candidate: Candidate,
+  request: Request,
+  questionnaireStrengths: string[],
+  deadlineDays: number
+): string {
+  const strengthsText = questionnaireStrengths.slice(0, 2).join(' та ');
+  const deadlineText = deadlineDays === 1 ? '1 день' : `${deadlineDays} дні`;
+
+  return `
+Ти — дружній HR-спеціаліст компанії Vamos.
+Напиши коротке повідомлення кандидату, якому ми надсилаємо тестове завдання після успішної анкети. УКРАЇНСЬКОЮ мовою.
+
+=== ДАНІ ===
+Ім'я кандидата: ${candidate.first_name}
+Позиція: ${request.title}
+Посилання на тестове завдання: ${request.test_task_url}
+Дедлайн: ${deadlineText}
+Сильні сторони з анкети: ${strengthsText || 'продемонстровані гарні відповіді'}
+
+=== ВИМОГИ (СТРОГО) ===
+1. Речення 1: Подяка за відповіді на питання анкети + відзначити 1-2 конкретні сильні сторони
+2. Речення 2: Сказати про наступний крок — тестове завдання з посиланням: ${request.test_task_url}
+3. Речення 3: Вказати дедлайн (${deadlineText})
+4. Речення 4: Дружня фраза з побажанням успіхів
+5. Рівно 3-4 речення, не більше і не менше
+6. НЕ підписуй повідомлення
+
+=== ЗАБОРОНЕНО ===
+- Більше 4 речень
+- Формальний тон, кліше
+- Емодзі
+- Звертатися на "Ви" (тільки "ти")
+- Дублювати посилання двічі
+
+Напиши ТІЛЬКИ текст повідомлення без лапок.
+`.trim();
+}
+
 export function MOCK_TEST_TASK_MESSAGE(
   candidate: Candidate,
   request: Request,

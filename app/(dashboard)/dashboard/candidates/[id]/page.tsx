@@ -606,7 +606,10 @@ export default function CandidateDetailsPage() {
           />
 
           {/* Test Task Timeline */}
-          <TestTaskTimeline candidate={candidate} />
+          <TestTaskTimeline
+            candidate={candidate}
+            questionnaireCompleted={(candidate as Record<string, unknown>).questionnaire_status === 'completed'}
+          />
 
           {/* Final Decision Panel */}
           <FinalDecisionPanel
