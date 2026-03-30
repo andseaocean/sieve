@@ -35,6 +35,8 @@ interface OutreachPreviewProps {
   telegramChatId?: number | string | null;
   telegramUsername?: string | null;
   preferredContactMethods?: string[] | null;
+  outreachSentAt?: string | null;
+  outreachMessage?: string | null;
 }
 
 interface OutreachData {
@@ -83,6 +85,8 @@ export function OutreachPreview({
   telegramChatId,
   telegramUsername,
   preferredContactMethods,
+  outreachSentAt,
+  outreachMessage,
 }: OutreachPreviewProps) {
   // Existing outreach state
   const [outreach, setOutreach] = useState<OutreachData | null>(null);
@@ -308,6 +312,37 @@ export function OutreachPreview({
       setIsCancelling(false);
     }
   };
+
+  // Frozen state — outreach already sent (candidate.outreach_sent_at is set)
+  if (outreachSentAt) {
+    return (
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <MessageCircle className="h-5 w-5" />
+              Outreach повідомлення
+            </CardTitle>
+            <Badge variant="outline" className="bg-green-100 text-green-800 border-green-200">
+              <CheckCircle2 className="h-3 w-3 mr-1" />
+              Відправлено
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-lg border bg-gray-50 p-4">
+            <p className="text-sm font-medium text-gray-700 mb-2">📨 Надіслане повідомлення</p>
+            <p className="text-sm text-gray-600 whitespace-pre-wrap">
+              {outreachMessage || 'Повідомлення надіслано (текст не збережено)'}
+            </p>
+            <p className="text-xs text-gray-400 mt-3">
+              Надіслано: {new Date(outreachSentAt).toLocaleString('uk-UA')}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   // Loading state
   if (loading) {

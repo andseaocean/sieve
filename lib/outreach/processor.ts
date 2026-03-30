@@ -51,12 +51,13 @@ export async function processOutreachItem(item: OutreachItemWithCandidate): Prom
       } as never)
       .eq('id', item.id);
 
-    // Update candidate outreach status and pipeline stage
+    // Update candidate outreach status, pipeline stage, and save message text
     await supabase
       .from('candidates')
       .update({
         outreach_status: 'sent',
         outreach_sent_at: now,
+        outreach_message: item.intro_message || null,
         pipeline_stage: 'outreach_sent',
       } as never)
       .eq('id', item.candidate_id);

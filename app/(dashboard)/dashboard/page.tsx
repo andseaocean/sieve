@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Briefcase, Users, Star, TrendingUp } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
+import { InboxBlock } from '@/components/dashboard/InboxBlock';
 
 interface Stats {
   activeRequests: number;
@@ -106,6 +107,9 @@ export default function DashboardPage() {
       <Header title="Головна" />
 
       <div className="flex-1 p-6 space-y-6">
+        {/* Inbox block */}
+        <InboxBlock />
+
         {/* Welcome message */}
         <div>
           <h2 className="text-2xl font-bold text-black">

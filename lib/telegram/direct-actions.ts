@@ -106,6 +106,7 @@ export async function sendOutreachDirectly(
       pipeline_stage: 'outreach_sent',
       outreach_status: 'sent',
       outreach_sent_at: now,
+      outreach_message: personalizedText,
     } as never)
     .eq('id', candidateId);
 
