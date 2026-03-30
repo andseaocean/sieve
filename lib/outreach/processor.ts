@@ -114,7 +114,7 @@ async function sendViaTelegram(item: OutreachItemWithCandidate): Promise<Process
           inline_keyboard: [[
             {
               text: 'Можемо починати 🚀',
-              callback_data: `start_questionnaire:${item.candidate_id}:${item.request_id}`,
+              callback_data: `start_questionnaire:${item.candidate_id}`,
             },
           ]],
         }

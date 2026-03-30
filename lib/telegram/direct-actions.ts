@@ -80,7 +80,7 @@ export async function sendOutreachDirectly(
       inline_keyboard: [[
         {
           text: 'Можемо починати 🚀',
-          callback_data: `start_questionnaire:${candidateId}:${requestId}`,
+          callback_data: `start_questionnaire:${candidateId}`,
         },
       ]],
     },

@@ -706,11 +706,10 @@ async function handleCallbackQuery(
 
   const supabase = createServiceRoleClient();
 
-  // ── start_questionnaire:{candidateId}:{requestId} ─────────
+  // ── start_questionnaire:{candidateId} ────────────────────
+  // Note: only candidateId in callback_data (Telegram limit: 64 bytes)
   if (data.startsWith('start_questionnaire:')) {
-    const parts = data.split(':');
-    const candidateId = parts[1];
-    const requestId = parts[2];
+    const candidateId = data.split(':')[1];
 
     await answerCallbackQuery(callbackQuery.id);
 
@@ -722,6 +721,29 @@ async function handleCallbackQuery(
     const candidate = await findCandidateByChatId(supabase, chatId);
     if (candidate?.bot_session?.state === 'questionnaire_in_progress') {
       await sendTelegramMessage(chatId, 'Анкета вже в процесі! Відповідай на поточне питання і натискай кнопку "Наступне".');
+      return;
+    }
+
+    // Look up requestId from primary_request_id or best match
+    let requestId: string | null = null;
+    if (candidate) {
+      const candidateExt = candidate as Candidate & { primary_request_id?: string | null };
+      requestId = candidateExt.primary_request_id ?? null;
+
+      if (!requestId) {
+        const { data: matchData } = await supabase
+          .from('candidate_request_matches')
+          .select('request_id')
+          .eq('candidate_id', candidateId)
+          .order('match_score', { ascending: false })
+          .limit(1)
+          .single();
+        requestId = (matchData as { request_id: string } | null)?.request_id ?? null;
+      }
+    }
+
+    if (!requestId) {
+      await sendTelegramMessage(chatId, 'Не вдалося знайти вакансію. Зверніться до менеджера.');
       return;
     }
 
