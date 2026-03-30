@@ -109,7 +109,22 @@ async function sendViaTelegram(item: OutreachItemWithCandidate): Promise<Process
   }
 
   try {
-    const result = await sendTelegramMessageFromHandler(candidate.telegram_chat_id, item.intro_message || '');
+    const replyMarkup = item.request_id
+      ? {
+          inline_keyboard: [[
+            {
+              text: 'Можемо починати 🚀',
+              callback_data: `start_questionnaire:${item.candidate_id}:${item.request_id}`,
+            },
+          ]],
+        }
+      : undefined;
+
+    const result = await sendTelegramMessageFromHandler(
+      candidate.telegram_chat_id,
+      item.intro_message || '',
+      replyMarkup ? { reply_markup: replyMarkup } : undefined
+    );
 
     if (!result.ok) {
       return { success: false, error: 'Telegram API returned not ok' };
