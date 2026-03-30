@@ -11,7 +11,7 @@ async function sendTelegramMessage(
   chatId: number,
   text: string,
   options?: Record<string, unknown>
-): Promise<{ ok: boolean; result?: { message_id: number } }> {
+): Promise<{ ok: boolean; result?: { message_id: number }; description?: string }> {
   const response = await fetch(
     `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
     {
@@ -20,7 +20,7 @@ async function sendTelegramMessage(
       body: JSON.stringify({
         chat_id: chatId,
         text,
-        parse_mode: 'Markdown',
+        // No parse_mode — test task message contains URLs that break Markdown
         ...options,
       }),
     }
@@ -92,7 +92,8 @@ export async function POST(request: NextRequest) {
     });
 
     if (!result.ok) {
-      return NextResponse.json({ error: 'Telegram API returned not ok' }, { status: 500 });
+      console.error('Telegram API error when sending test task:', result.description);
+      return NextResponse.json({ error: `Telegram error: ${result.description || 'not ok'}` }, { status: 500 });
     }
 
     // Calculate deadline
