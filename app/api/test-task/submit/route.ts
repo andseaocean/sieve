@@ -87,18 +87,31 @@ export async function POST(request: NextRequest) {
       },
     } as never);
 
-    // Start AI evaluation (async, don't wait)
-    evaluateTestTaskAsync(
-      candidateId,
-      submissionText,
-      (req?.test_task_evaluation_criteria as string) || 'Quality, completeness, clarity',
-      (req?.test_task_url as string) || 'Test task'
-    ).catch(err => console.error('Async evaluation error:', err));
+    const evaluationCriteria = (req?.test_task_evaluation_criteria as string | null)?.trim() || '';
+    const submittedStatus = lateByHours > 0 ? 'submitted_late' : 'submitted_on_time';
+
+    if (evaluationCriteria) {
+      // Criteria provided → AI evaluation (async, don't wait)
+      evaluateTestTaskAsync(
+        candidateId,
+        submissionText,
+        evaluationCriteria,
+        (req?.test_task_url as string) || 'Test task'
+      ).catch(err => console.error('Async evaluation error:', err));
+    } else {
+      // No criteria → manual review only, set final submitted status immediately
+      await supabase
+        .from('candidates')
+        .update({ test_task_status: submittedStatus } as never)
+        .eq('id', candidateId);
+      console.log(`Test task submitted for candidate ${candidateId} — manual review (no criteria)`);
+    }
 
     return NextResponse.json({
       success: true,
-      status: lateByHours > 0 ? 'submitted_late' : 'submitted_on_time',
+      status: submittedStatus,
       lateByHours: lateByHours > 0 ? lateByHours : null,
+      aiEvaluation: !!evaluationCriteria,
       message: 'Дякуємо за виконання тестового завдання! Ми перевіримо його найближчим часом.',
     });
   } catch (error) {
