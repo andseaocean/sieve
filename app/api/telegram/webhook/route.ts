@@ -307,19 +307,10 @@ async function startQuestionnaire(
 async function sendQuestionMessage(
   chatId: number,
   question: QuestionnaireQuestionSnapshot,
-  questionNumber: number,
-  totalQuestions: number
+  _questionNumber: number,
+  _totalQuestions: number
 ): Promise<void> {
-  const isLast = questionNumber === totalQuestions;
-  const buttonLabel = isLast ? 'Завершити анкету ✓' : 'Перейти до наступного питання →';
-
-  const text = `*Питання ${questionNumber} з ${totalQuestions}*\n_${question.competency_name}_\n\n${question.text}`;
-
-  await sendTelegramMessage(chatId, text, {
-    reply_markup: {
-      inline_keyboard: [[{ text: buttonLabel, callback_data: 'questionnaire_next' }]],
-    },
-  });
+  await sendTelegramMessage(chatId, question.text);
 }
 
 /**
@@ -562,7 +553,7 @@ async function handleMessage(message: TelegramMessage): Promise<void> {
     return;
   }
 
-  // If questionnaire is in progress — accumulate answer parts
+  // If questionnaire is in progress — accumulate answer parts, then show action buttons
   if (botSession?.state === 'questionnaire_in_progress') {
     const parts = [...(botSession.current_answer_parts || []), text];
     await supabase
@@ -571,7 +562,31 @@ async function handleMessage(message: TelegramMessage): Promise<void> {
         bot_session: { ...botSession, current_answer_parts: parts } as never,
       } as never)
       .eq('id', candidate.id);
-    return; // Don't classify, just accumulate
+
+    // Determine if this is the last question to show correct button label
+    let isLastQuestion = false;
+    if (botSession.questionnaire_response_id) {
+      const { data: qrData } = await supabase
+        .from('questionnaire_responses' as never)
+        .select('questions')
+        .eq('id', botSession.questionnaire_response_id)
+        .single();
+      const qr = qrData as { questions: QuestionnaireQuestionSnapshot[] } | null;
+      if (qr) {
+        isLastQuestion = (botSession.current_question_index ?? 0) === qr.questions.length - 1;
+      }
+    }
+
+    const nextButtonLabel = isLastQuestion ? '✅ Завершити' : '➡️ Наступне питання';
+    await sendTelegramMessage(chatId, 'Отримали вашу відповідь. Що далі?', {
+      reply_markup: {
+        inline_keyboard: [[
+          { text: '➕ Додати до відповіді', callback_data: 'questionnaire_continue' },
+          { text: nextButtonLabel, callback_data: 'questionnaire_next' },
+        ]],
+      },
+    });
+    return;
   }
 
   // Classify and handle other messages
@@ -773,6 +788,16 @@ async function handleCallbackQuery(
     }
 
     await startQuestionnaire(supabase, chatId, candidateId, requestId);
+    return;
+  }
+
+  // ── questionnaire_continue — candidate wants to add more to their answer ──
+  if (data === 'questionnaire_continue') {
+    await answerCallbackQuery(callbackQuery.id);
+    if (messageId && chatId) {
+      await editTelegramReplyMarkup(chatId, messageId);
+    }
+    // Nothing else — wait for the next text message
     return;
   }
 
