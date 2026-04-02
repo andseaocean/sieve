@@ -163,7 +163,7 @@ export async function sendTestTaskToCandidate(
 
   const taskMessage = req.test_task_message
     ? `${req.test_task_message}\n\nУмови завдання: ${req.test_task_url}`
-    : `Час для тестового завдання!\n\nОзнайомся з умовами за посиланням: ${req.test_task_url}`;
+    : `Тепер пропоную тобі виконати невелике тестове завдання.\n\nЗ умовами можеш ознайомитися за посиланням: ${req.test_task_url}`;
 
   const now = new Date();
   const deadlineDays = req.test_task_deadline_days || 3;

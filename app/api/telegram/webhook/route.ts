@@ -484,7 +484,7 @@ async function handleMessage(message: TelegramMessage): Promise<void> {
 
     await sendTelegramMessage(
       chatId,
-      `Привіт, ${message.from.first_name}! Я Vamos Hiring Bot.\n\nМи — AI-first компанія, яка будує майбутнє технологій. Шукаєш роботу в інноваційній команді? Натисни кнопку нижче!`,
+      `Привіт${message.from.first_name ? `, ${message.from.first_name}` : ''}! Я Vamos Hiring Bot.\n\nМабуть, ти тут для того, щоб подати заявку на одну із наших вакансій.\n\nНатискай кнопку нижче і давай знайомитися!`,
       {
         reply_markup: {
           inline_keyboard: [[
@@ -578,7 +578,7 @@ async function handleMessage(message: TelegramMessage): Promise<void> {
     }
 
     const nextButtonLabel = isLastQuestion ? '✅ Завершити' : '➡️ Наступне питання';
-    await sendTelegramMessage(chatId, 'Отримали вашу відповідь. Що далі?', {
+    await sendTelegramMessage(chatId, 'Дякую за відповідь! Що далі?', {
       reply_markup: {
         inline_keyboard: [[
           { text: '➕ Додати до відповіді', callback_data: 'questionnaire_continue' },
@@ -871,7 +871,7 @@ async function handleCallbackQuery(
 
     const APP_URL_LOCAL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     await sendTelegramMessage(chatId,
-      'Добре, повертаємося! Коли будеш готовий — надсилай результати.',
+      'Добре, повертаємося! Як буде готово — надсилай результати.',
       {
         reply_markup: {
           inline_keyboard: [
