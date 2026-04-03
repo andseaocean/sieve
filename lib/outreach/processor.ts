@@ -110,21 +110,19 @@ async function sendViaTelegram(item: OutreachItemWithCandidate): Promise<Process
   }
 
   try {
-    const replyMarkup = item.request_id
-      ? {
-          inline_keyboard: [[
-            {
-              text: 'Можемо починати 🚀',
-              callback_data: `start_questionnaire:${item.candidate_id}`,
-            },
-          ]],
-        }
-      : undefined;
+    const replyMarkup = {
+      inline_keyboard: [[
+        {
+          text: 'Можемо починати 🚀',
+          callback_data: `start_questionnaire:${item.candidate_id}`,
+        },
+      ]],
+    };
 
     const result = await sendTelegramMessageFromHandler(
       candidate.telegram_chat_id,
       item.intro_message || '',
-      replyMarkup ? { reply_markup: replyMarkup } : undefined
+      { reply_markup: replyMarkup }
     );
 
     if (!result.ok) {
