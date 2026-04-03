@@ -83,9 +83,7 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-muted-foreground">
-            Тестовий доступ: manager@vamos.com / test123
-          </p>
+
         </CardContent>
       </Card>
     </div>

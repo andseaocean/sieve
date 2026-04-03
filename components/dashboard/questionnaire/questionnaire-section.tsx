@@ -49,6 +49,7 @@ export function QuestionnaireSection({ candidateId, questionnaireStatus, request
   const [evaluation, setEvaluation] = useState<QuestionnaireAIEvaluation | null>(null);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [localStatus, setLocalStatus] = useState<QuestionnaireStatus | null>(questionnaireStatus);
   const [showAnswers, setShowAnswers] = useState(false);
   const [requestId, setRequestId] = useState<string | undefined>(propRequestId);
   const [requests, setRequests] = useState<Array<{ id: string; title: string }>>([]);
@@ -56,7 +57,7 @@ export function QuestionnaireSection({ candidateId, questionnaireStatus, request
 
   // Fetch questionnaire response if already sent
   useEffect(() => {
-    if (questionnaireStatus && questionnaireStatus !== 'skipped') {
+    if (localStatus && localStatus !== 'skipped') {
       setLoading(true);
       fetch(`/api/questionnaire/response/${candidateId}`)
         .then(r => r.ok ? r.json() : null)
@@ -71,11 +72,11 @@ export function QuestionnaireSection({ candidateId, questionnaireStatus, request
         .catch(() => {})
         .finally(() => setLoading(false));
     }
-  }, [candidateId, questionnaireStatus]);
+  }, [candidateId, localStatus]);
 
   // Fetch available requests if no requestId provided
   useEffect(() => {
-    if (!requestId && !questionnaireStatus) {
+    if (!requestId && !localStatus) {
       fetch('/api/requests')
         .then(r => r.ok ? r.json() : [])
         .then(data => {
@@ -87,7 +88,7 @@ export function QuestionnaireSection({ candidateId, questionnaireStatus, request
         })
         .catch(() => {});
     }
-  }, [requestId, questionnaireStatus]);
+  }, [requestId, localStatus]);
 
   const handleSend = async () => {
     const effectiveRequestId = requestId || selectedRequestId;
@@ -111,12 +112,22 @@ export function QuestionnaireSection({ candidateId, questionnaireStatus, request
 
       const data = await res.json();
 
-      // Copy link to clipboard
-      await navigator.clipboard.writeText(data.questionnaire_url);
-      toast.success('Анкету надіслано! Посилання скопійовано в буфер обміну', {
-        description: data.questionnaire_url,
-        duration: 8000,
-      });
+      // Try to copy link to clipboard (may fail silently due to permissions)
+      let copied = false;
+      try {
+        await navigator.clipboard.writeText(data.questionnaire_url);
+        copied = true;
+      } catch {
+        // clipboard not available — that's ok
+      }
+
+      toast.success(
+        copied ? 'Анкету створено! Посилання скопійовано в буфер обміну' : 'Анкету створено! Скопіюйте посилання нижче',
+        { description: data.questionnaire_url, duration: 8000 }
+      );
+
+      // Update local status so UI switches to "waiting" state immediately
+      setLocalStatus('sent');
 
       // Refresh data
       setResponse(null);
@@ -150,9 +161,9 @@ export function QuestionnaireSection({ candidateId, questionnaireStatus, request
           <ClipboardList className="h-5 w-5 text-primary" />
           Soft Skills Анкета
         </CardTitle>
-        {questionnaireStatus && (
-          <Badge variant="outline" className={statusColors[questionnaireStatus] || ''}>
-            {statusLabels[questionnaireStatus] || questionnaireStatus}
+        {localStatus && (
+          <Badge variant="outline" className={statusColors[localStatus] || ''}>
+            {statusLabels[localStatus] || localStatus}
           </Badge>
         )}
       </CardHeader>
@@ -162,7 +173,7 @@ export function QuestionnaireSection({ candidateId, questionnaireStatus, request
             <Loader2 className="h-4 w-4 animate-spin" />
             Завантаження...
           </div>
-        ) : !questionnaireStatus ? (
+        ) : !localStatus ? (
           /* Not sent yet */
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
@@ -189,11 +200,11 @@ export function QuestionnaireSection({ candidateId, questionnaireStatus, request
               Надіслати анкету
             </Button>
           </div>
-        ) : questionnaireStatus === 'sent' || questionnaireStatus === 'in_progress' ? (
+        ) : localStatus === 'sent' || localStatus === 'in_progress' ? (
           /* Waiting for response */
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              {questionnaireStatus === 'sent'
+              {localStatus === 'sent'
                 ? 'Очікуємо на відповіді кандидата.'
                 : 'Кандидат почав заповнювати анкету.'}
             </p>
@@ -207,7 +218,7 @@ export function QuestionnaireSection({ candidateId, questionnaireStatus, request
               Скопіювати посилання
             </Button>
           </div>
-        ) : questionnaireStatus === 'expired' ? (
+        ) : localStatus === 'expired' ? (
           <div className="space-y-3">
             <p className="text-sm text-red-600">Дедлайн для заповнення анкети минув.</p>
             <Button onClick={handleSend} disabled={sending} variant="outline">
@@ -215,7 +226,7 @@ export function QuestionnaireSection({ candidateId, questionnaireStatus, request
               Надіслати повторно
             </Button>
           </div>
-        ) : questionnaireStatus === 'completed' && evaluation ? (
+        ) : localStatus === 'completed' && evaluation ? (
           /* Show results */
           <div className="space-y-4">
             {/* Overall score */}
@@ -308,7 +319,7 @@ export function QuestionnaireSection({ candidateId, questionnaireStatus, request
               </div>
             )}
           </div>
-        ) : questionnaireStatus === 'completed' && !evaluation ? (
+        ) : localStatus === 'completed' && !evaluation ? (
           /* Completed but evaluation pending or errored */
           <div className="space-y-2">
             <p className="text-sm text-muted-foreground">
