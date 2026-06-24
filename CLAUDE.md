@@ -18,7 +18,7 @@ Sieve (package name: `hiring-system`) is an AI-powered recruitment platform for 
 - **Framework:** Next.js 16 (App Router), React 19, TypeScript
 - **Styling:** Tailwind CSS 4, shadcn/ui (Radix primitives), Lucide icons, next-themes
 - **Database:** Supabase (PostgreSQL), Supabase Storage (resume uploads), RLS enabled
-- **AI:** Anthropic Claude API (`claude-sonnet-4-20250514`) via `/lib/ai/claude.ts`
+- **AI:** Anthropic Claude API (`claude-sonnet-4-6`) via `/lib/ai/claude.ts`
 - **Auth:** NextAuth.js 4 (credentials provider, JWT strategy)
 - **Email:** Resend API
 - **Bot:** Telegram Bot API (node-telegram-bot-api), Telegram Mini App

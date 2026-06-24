@@ -23,7 +23,7 @@ export interface AIMatchResult {
 
 export async function analyzeWithClaude(prompt: string): Promise<string> {
   const message = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-sonnet-4-6',
     max_tokens: 2048,
     messages: [
       {
@@ -66,7 +66,7 @@ export async function analyzeWithClaudeAndPDF(
   content.push({ type: 'text', text: prompt });
 
   const message = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-sonnet-4-6',
     max_tokens: 2048,
     messages: [
       {
