@@ -236,7 +236,7 @@ middleware.ts                     # Auth middleware (protects /dashboard/*)
 - `PUT /api/candidates/[id]/pipeline-stage` — Manually change pipeline stage (body: { stage, reason? }); logs to candidate_conversations; blocked if is_blacklisted=true
 - `GET /api/candidates/[id]/resume` — PDF resume proxy/viewer
 - `GET/POST /api/candidates/[id]/comments` — Comments
-- `GET /api/candidates/inbox` — Inbox: кандидати що потребують уваги (4 категорії: new/analyzed/questionnaire/test)
+- `GET /api/candidates/inbox` — Inbox: кандидати що потребують уваги (4 категорії: new/analyzed/questionnaire/test). Категорії "questionnaire" (анкета пройдена, тестове не надіслано) та "test" (тестове здано, рішення не прийнято) додатково виключають термінальні `pipeline_stage` (`rejected`/`hired`/`outreach_declined`) — інакше кандидат, відхилений вручну до зміни `questionnaire_status`/`test_task_status`, лишався б у списку
 - `GET /api/candidates/[id]/conversations` — Хронологія кандидата (candidate_conversations), `?sort=asc|desc`
 - `GET /api/candidates/[id]/match-info` — Best match request_id + final_decision
 - `POST /api/candidates/[id]/final-decision` — Manager invite/reject decision (queues automation)
@@ -410,9 +410,9 @@ interface BotSession {
 - Після підтвердження: `candidate_request_matches` (status: new) + automation_queue `send_outreach` + `pipeline_stage → outreach_sent`
 - **Ключові файли:** `components/requests/RecommendedCandidates.tsx`, `app/api/requests/[id]/recommended-candidates/route.ts`, `app/api/requests/[id]/add-recommended/route.ts`, `lib/ai/outreach-prompts.ts` (`RE_OUTREACH_PROMPT`), `lib/outreach/message-generator.ts` (`generateReOutreach`)
 
-### Auto scan-candidates при створенні вакансії
-- **Видалено** — більше не тригериться автоматично при `POST /api/requests`
-- Кнопка "Сканувати кандидатів" залишається, але запускається лише вручну менеджером
+### Auto scan-candidates при створенні вакансії / вході на сторінку вакансії
+- **Видалено** — більше не тригериться автоматично ні при `POST /api/requests`, ні при відкритті сторінки вакансії
+- `CandidateScanResults.tsx` (вкладка "Підібрані" на сторінці вакансії) більше не запускає скан у `useEffect` при монтуванні — показує кнопку "Просканувати базу кандидатів", яка викликає `POST /api/requests/[id]/scan-candidates` по кліку (зі станом завантаження). Повторний вхід на сторінку не запускає скан повторно — лише явний клік ("Просканувати..." при першому вході, "Оновити" — після)
 
 ### Manual Outreach Flow (legacy)
 1. Manager selects candidate + request

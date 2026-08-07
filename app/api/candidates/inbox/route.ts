@@ -49,6 +49,10 @@ export async function GET() {
     .order('created_at', { ascending: false });
   const analyzedCandidates = (analyzedRaw || []) as unknown as CandidateRow[];
 
+  // Terminal pipeline stages: candidate no longer needs manager attention regardless
+  // of questionnaire/test_task sub-status.
+  const TERMINAL_STAGES = ['rejected', 'hired', 'outreach_declined'];
+
   // 3. Questionnaire done, test not sent
   const { data: questionnaireRaw } = await supabase
     .from('candidates')
@@ -56,6 +60,7 @@ export async function GET() {
     .eq('questionnaire_status', 'completed')
     .eq('test_task_status', 'not_sent')
     .eq('is_blacklisted', false)
+    .not('pipeline_stage', 'in', `(${TERMINAL_STAGES.join(',')})`)
     .order('created_at', { ascending: false });
   const questionnaireCandidates = (questionnaireRaw || []) as unknown as CandidateRow[];
 
@@ -65,6 +70,7 @@ export async function GET() {
     .select('id, first_name, last_name, ai_score, ai_category, pipeline_stage, primary_request_id, created_at, test_task_submitted_at')
     .in('test_task_status', ['submitted_on_time', 'submitted_late', 'evaluating', 'evaluated'])
     .eq('is_blacklisted', false)
+    .not('pipeline_stage', 'in', `(${TERMINAL_STAGES.join(',')})`)
     .order('test_task_submitted_at', { ascending: false });
   let testCandidates = (testRaw || []) as unknown as CandidateRow[];
 

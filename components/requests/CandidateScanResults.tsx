@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Loader2, AlertTriangle, Users } from 'lucide-react';
+import { Loader2, AlertTriangle, Search, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { getScoreColor } from '@/lib/utils';
 
@@ -48,11 +48,6 @@ export function CandidateScanResults({ requestId, requestTitle }: CandidateScanR
     }
   }, [requestId]);
 
-  // Auto-scan once on mount
-  useEffect(() => {
-    runScan();
-  }, [runScan]);
-
   const handleToggle = (candidateId: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -94,12 +89,27 @@ export function CandidateScanResults({ requestId, requestTitle }: CandidateScanR
     }
   };
 
-  if (!hasScanned && scanning) {
+  if (!hasScanned) {
     return (
       <Card>
-        <CardContent className="pt-6 flex items-center gap-3 text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Сканування бази кандидатів...
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Users className="h-4 w-4" />
+            Кандидати з бази, які підходять на цю вакансію
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground mb-4">
+            Сканування запускається вручну і використовує AI-запити — натисніть кнопку, щоб знайти кандидатів з бази, які підходять на цю вакансію.
+          </p>
+          <Button onClick={runScan} disabled={scanning} size="sm">
+            {scanning ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Search className="h-4 w-4 mr-2" />
+            )}
+            {scanning ? 'Сканування...' : 'Просканувати базу кандидатів'}
+          </Button>
         </CardContent>
       </Card>
     );
@@ -122,7 +132,7 @@ export function CandidateScanResults({ requestId, requestTitle }: CandidateScanR
       <CardContent>
         {results.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            {hasScanned ? 'Підходящих кандидатів не знайдено (score < 70)' : 'Натисніть "Оновити" для сканування'}
+            Підходящих кандидатів не знайдено (score &lt; 70)
           </p>
         ) : (
           <>
